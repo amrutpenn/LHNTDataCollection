@@ -42,6 +42,7 @@ def main():
     in_menu = True
     in_input = False
     in_trial_menu = False
+    in_questionaire = False
     direction = 'left'  # Start with 'left' and alternate
     trial_number = 1
     total_trials = 10  # Default number of trials
@@ -97,6 +98,7 @@ def main():
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_s:
                         in_menu = False
+                        in_questionaire = True
                     elif event.key == pygame.K_n:
                         in_input = True
                         in_menu = False
@@ -104,6 +106,43 @@ def main():
                         input_error = False
                     elif event.key == pygame.K_q:
                         running = False
+
+        elif in_questionaire:
+            # Display Input Menu for Setting Number of Trials
+            screen.fill(BLACK)
+            prompt_text = medium_font.render("Enter Subject Name:", True, WHITE)
+            input_display = medium_font.render(input_text, True, GREEN if not input_error else RED)
+            instructions_text = small_font.render("Press Enter to Confirm", True, WHITE)
+
+            # Positioning Text
+            prompt_rect = prompt_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 3))
+            input_rect = input_display.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2))
+            instructions_rect = instructions_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 100))
+
+            #TODO: Ask questions from questionaire
+
+            # Blit Text to Screen
+            screen.blit(prompt_text, prompt_rect)
+            screen.blit(input_display, input_rect)
+            screen.blit(instructions_text, instructions_rect)
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+                        break
+                    elif event.key == pygame.K_RETURN:
+                        in_questionaire = False
+                        # TODO: send data
+                        pass
+                    elif event.key == pygame.K_BACKSPACE:
+                        input_text = input_text[:-1]
+                    else:
+                        input_text += event.unicode
 
         elif in_input:
             # Display Input Menu for Setting Number of Trials
