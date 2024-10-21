@@ -168,8 +168,9 @@ def main():
                         last_name_response = medium_font.render(temp_answers[1], True, WHITE)
                         eid_response = medium_font.render(temp_answers[2], True, WHITE)
                     elif event.key == pygame.K_RETURN: #TODO: Replace logic for safety
-                        in_questionaire_subject = False
+                        in_questionaire_subject = False 
                         in_questionaire_physiological = True
+                        #TODO: Check for prev subject name to skip over questionaire
                     else:
                         temp_answers[answer_index] += event.unicode
 
@@ -200,9 +201,9 @@ def main():
 
             stim_button = Checkbox(screen, width_delta, height_delta * 2, 0, caption='0 mg', font_color=(255, 255, 255))
             stim_button2 = Checkbox(screen, width_delta * 3, height_delta * 2, 1, caption='< 50 mg', font_color=(255, 255, 255))
-            stim_button3 = Checkbox(screen, width_delta * 5, height_delta * 2, 1, caption='50 - 100 mg', font_color=(255, 255, 255))
-            stim_button4 = Checkbox(screen, width_delta * 7, height_delta * 2, 1, caption='100 - 150 mg', font_color=(255, 255, 255))
-            stim_button5 = Checkbox(screen, width_delta * 9, height_delta * 2, 1, caption='> 150 mg', font_color=(255, 255, 255))
+            stim_button3 = Checkbox(screen, width_delta * 5, height_delta * 2, 2, caption='50 - 100 mg', font_color=(255, 255, 255))
+            stim_button4 = Checkbox(screen, width_delta * 7, height_delta * 2, 3, caption='100 - 150 mg', font_color=(255, 255, 255))
+            stim_button5 = Checkbox(screen, width_delta * 9, height_delta * 2, 4, caption='> 150 mg', font_color=(255, 255, 255))
 
             stimulant_boxes = []
             stimulant_boxes.append(stim_button)
@@ -211,11 +212,11 @@ def main():
             stimulant_boxes.append(stim_button4)
             stimulant_boxes.append(stim_button5)
 
-            meal_button = Checkbox(screen, width_delta, height_delta * 4, 0, caption='No meal', font_color=(255, 255, 255))
-            meal_button2 = Checkbox(screen, width_delta * 3, height_delta * 4, 0, caption='Light meal', font_color=(255, 255, 255))
-            meal_button3 = Checkbox(screen, width_delta * 5, height_delta * 4, 0, caption='Medium meal', font_color=(255, 255, 255))
-            meal_button4 = Checkbox(screen, width_delta * 7, height_delta * 4, 0, caption='Heavy meal', font_color=(255, 255, 255))
-            meal_button5 = Checkbox(screen, width_delta * 9, height_delta * 4, 0, caption='Not Sure', font_color=(255, 255, 255))
+            meal_button = Checkbox(screen, width_delta, height_delta * 4, 5, caption='No meal', font_color=(255, 255, 255))
+            meal_button2 = Checkbox(screen, width_delta * 3, height_delta * 4, 6, caption='Light meal', font_color=(255, 255, 255))
+            meal_button3 = Checkbox(screen, width_delta * 5, height_delta * 4, 7, caption='Medium meal', font_color=(255, 255, 255))
+            meal_button4 = Checkbox(screen, width_delta * 7, height_delta * 4, 8, caption='Heavy meal', font_color=(255, 255, 255))
+            meal_button5 = Checkbox(screen, width_delta * 9, height_delta * 4, 9, caption='Not sure', font_color=(255, 255, 255))
 
             meal_boxes = []
             meal_boxes.append(meal_button)
@@ -241,14 +242,31 @@ def main():
             
             
             # Loop
-
-            # elif event.type == pygame.MOUSEBUTTONDOWN:    
-            #         for box in boxes:
-            #             box.update_checkbox(event)
-            #             if box.checked is True:
-            #                 for b in boxes:
-            #                     if b != box:
-            #                         b.checked = False
+            # Subject info page handling
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+            #     elif event.type == pygame.KEYDOWN:
+            #         if event.key == pygame.K_ESCAPE:
+            #             running = False
+            #             break
+            #         # Change question selection
+            #         if event.key == pygame.K_DOWN and answer_index < 2:
+            #             answer_index += 1
+            #         elif event.key == pygame.K_UP and answer_index > 0:
+            #             answer_index -= 1
+            #         elif event.key == pygame.K_BACKSPACE:
+            #             temp_answers[answer_index] = temp_answers[answer_index] [:-1]
+            #             first_name_response = medium_font.render(temp_answers[0], True, WHITE)
+            #             last_name_response = medium_font.render(temp_answers[1], True, WHITE)
+            #             eid_response = medium_font.render(temp_answers[2], True, WHITE)
+            #         elif event.key == pygame.K_RETURN: #TODO: Replace logic for safety
+            #             in_questionaire_subject = False 
+            #             in_questionaire_physiological = True
+            #             #TODO: Check for prev subject name to skip over questionaire
+            #         else:
+            #             temp_answers[answer_index] += event.unicode
 
         elif in_input:
             # Display Input Menu for Setting Number of Trials
