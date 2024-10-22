@@ -44,9 +44,12 @@ def main():
     in_input = False
     in_trial_menu = False
     in_questionaire_subject = False
-    direction = 'left'  # Start with 'left' and alternate
+    in_after_session_menu = False
     trial_number = 1
-    total_trials = 10  # Default number of trials
+    total_trials = 1 # Default number of trials
+    time_between_sessions = 180 # number of seconds to wait between sessions of data collection
+    start_enable_time = time.time() # the time at/after which the start button is enabled
+    
 
     # Bar Settings
     green_bar_width = 20
@@ -114,6 +117,7 @@ def main():
     exercise_bool_boxes.append(no_exercise)
 
     while running:
+        direction = 'left'  # Start with 'left' and alternate
         if in_menu:
             # Display Main Menu
             screen.fill(BLACK)
@@ -122,6 +126,7 @@ def main():
             set_text = medium_font.render("Press N to Set Number", True, WHITE)
             quit_text = medium_font.render("Press Q to Quit", True, RED)
             trials_text = small_font.render(f"Total Trials: {total_trials}", True, WHITE)
+            wait_text = small_font.render(f"You have to wait {round(start_enable_time - time.time())} seconds before starting!", True, WHITE)
 
             # Positioning Text
             title_rect = title_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 4))
@@ -129,6 +134,7 @@ def main():
             set_rect = set_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 50))
             quit_rect = quit_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 150))
             trials_rect = trials_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 - 150))
+            wait_rect = wait_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 250))
 
             # Blit Text to Screen
             screen.blit(title_text, title_rect)
@@ -136,15 +142,18 @@ def main():
             screen.blit(set_text, set_rect)
             screen.blit(quit_text, quit_rect)
             screen.blit(trials_text, trials_rect)
+            if (start_enable_time > time.time()): # If the start button is currently disabled
+                screen.blit(wait_text, wait_rect)
             pygame.display.flip()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_s:
-                        in_menu = False
-                        in_questionaire_subject = True
+                    if event.key == pygame.K_s: 
+                        if time.time() >= start_enable_time:
+                            in_menu = False
+                            in_questionaire_subject = True
                     elif event.key == pygame.K_n:
                         in_input = True
                         in_menu = False
@@ -339,7 +348,7 @@ def main():
                     elif event.unicode.isdigit():
                         input_text += event.unicode
 
-        elif in_trial_menu:
+        elif in_trial_menu: 
             # Display Trial Menu (Accessible via 'M' during trials)
             screen.fill(BLACK)
             menu_title = medium_font.render("Trial Menu", True, WHITE)
@@ -365,7 +374,41 @@ def main():
                         running = False
                     elif event.key == pygame.K_r:
                         in_trial_menu = False
+        elif in_after_session_menu:
 
+            # Display After Session Menu
+            screen.fill(BLACK)
+            question_text = large_font.render("Do you want to continue?", True, WHITE)
+            continue_text = medium_font.render("Press Y to continue", True, GREEN)
+            quit_text = medium_font.render("Press N to exit", True, RED)
+
+            # Positioning Text
+            question_rect = question_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 4))
+            continue_rect = continue_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 - 50))
+            quit_rect = quit_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 50))
+
+            # Blit Text to Screen
+            screen.blit(question_text, question_rect)
+            screen.blit(continue_text, continue_rect)
+            screen.blit(quit_text, quit_rect)
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_y:
+                        in_after_session_menu = False
+                        in_menu = True
+                        start_enable_time = time.time() + time_between_sessions # Enable the start button 180 seconds after the current time
+                    elif event.key == pygame.K_n: 
+                        # Not fully sure if all of the following lines are necessary, but they are functional
+                        in_after_session_menu = False
+                        running = False
+                        board.stop_stream()
+                        board.release_session()
+                        pygame.quit()
+                        sys.exit()
         else:
             # Display Current Trial Number
             screen.fill(BLACK)
@@ -571,7 +614,7 @@ def main():
                 # Wait for 3 seconds before returning to menu
                 time.sleep(3)
                 trial_number = 1  # Reset trial number
-                in_menu = True
+                in_after_session_menu = True
 
     # Handle Trial Menu outside the main loop to avoid missing quit events
         while in_trial_menu and running:
@@ -603,11 +646,6 @@ def main():
                     elif event.key == pygame.K_r:
                         in_trial_menu = False
 
-    # Cleanup
-    board.stop_stream()
-    board.release_session()
-    pygame.quit()
-    sys.exit()
 
 if __name__ == "__main__":
     main()
