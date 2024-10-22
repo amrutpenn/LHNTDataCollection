@@ -75,6 +75,43 @@ def main():
     free_response_answers = ["", ""]
     questionaire_answers = {}
 
+    # Questionaire Button Positioning
+    height_delta = infoObject.current_h // 11
+    width_delta = infoObject.current_w // 11
+
+    stim_button = Checkbox(screen, width_delta, height_delta * 2, 0, caption='0 mg', font_color=(255, 255, 255))
+    stim_button2 = Checkbox(screen, width_delta * 3, height_delta * 2, 1, caption='< 50 mg', font_color=(255, 255, 255))
+    stim_button3 = Checkbox(screen, width_delta * 5, height_delta * 2, 2, caption='50 - 100 mg', font_color=(255, 255, 255))
+    stim_button4 = Checkbox(screen, width_delta * 7, height_delta * 2, 3, caption='100 - 150 mg', font_color=(255, 255, 255))
+    stim_button5 = Checkbox(screen, width_delta * 9, height_delta * 2, 4, caption='> 150 mg', font_color=(255, 255, 255))
+
+    stimulant_boxes = []
+    stimulant_boxes.append(stim_button)
+    stimulant_boxes.append(stim_button2)
+    stimulant_boxes.append(stim_button3)
+    stimulant_boxes.append(stim_button4)
+    stimulant_boxes.append(stim_button5)
+
+    meal_button = Checkbox(screen, width_delta, height_delta * 4, 5, caption='No meal', font_color=(255, 255, 255))
+    meal_button2 = Checkbox(screen, width_delta * 3, height_delta * 4, 6, caption='Light meal', font_color=(255, 255, 255))
+    meal_button3 = Checkbox(screen, width_delta * 5, height_delta * 4, 7, caption='Medium meal', font_color=(255, 255, 255))
+    meal_button4 = Checkbox(screen, width_delta * 7, height_delta * 4, 8, caption='Heavy meal', font_color=(255, 255, 255))
+    meal_button5 = Checkbox(screen, width_delta * 9, height_delta * 4, 9, caption='Not sure', font_color=(255, 255, 255))
+
+    meal_boxes = []
+    meal_boxes.append(meal_button)
+    meal_boxes.append(meal_button2)
+    meal_boxes.append(meal_button3)
+    meal_boxes.append(meal_button4)
+    meal_boxes.append(meal_button5)
+
+    yes_exercise = Checkbox(screen, width_delta * 5, height_delta * 8, 10, caption='yes', font_color=(255, 255, 255))
+    no_exercise = Checkbox(screen, width_delta * 6, height_delta * 8, 11, caption='no', font_color=(255, 255, 255))
+
+    exercise_bool_boxes = []
+    exercise_bool_boxes.append(yes_exercise)
+    exercise_bool_boxes.append(no_exercise)
+
     while running:
         if in_menu:
             # Display Main Menu
@@ -202,42 +239,6 @@ def main():
             exercise_rect = exercise_text.get_rect(center=(infoObject.current_w // 2, height_delta * 7))
             exercise_type_rect = exercise_type_text.get_rect(center=(infoObject.current_w // 2, height_delta * 9))
 
-            # Button Positioning
-            width_delta = infoObject.current_w // 11
-
-            stim_button = Checkbox(screen, width_delta, height_delta * 2, 0, caption='0 mg', font_color=(255, 255, 255))
-            stim_button2 = Checkbox(screen, width_delta * 3, height_delta * 2, 1, caption='< 50 mg', font_color=(255, 255, 255))
-            stim_button3 = Checkbox(screen, width_delta * 5, height_delta * 2, 2, caption='50 - 100 mg', font_color=(255, 255, 255))
-            stim_button4 = Checkbox(screen, width_delta * 7, height_delta * 2, 3, caption='100 - 150 mg', font_color=(255, 255, 255))
-            stim_button5 = Checkbox(screen, width_delta * 9, height_delta * 2, 4, caption='> 150 mg', font_color=(255, 255, 255))
-
-            stimulant_boxes = []
-            stimulant_boxes.append(stim_button)
-            stimulant_boxes.append(stim_button2)
-            stimulant_boxes.append(stim_button3)
-            stimulant_boxes.append(stim_button4)
-            stimulant_boxes.append(stim_button5)
-
-            meal_button = Checkbox(screen, width_delta, height_delta * 4, 5, caption='No meal', font_color=(255, 255, 255))
-            meal_button2 = Checkbox(screen, width_delta * 3, height_delta * 4, 6, caption='Light meal', font_color=(255, 255, 255))
-            meal_button3 = Checkbox(screen, width_delta * 5, height_delta * 4, 7, caption='Medium meal', font_color=(255, 255, 255))
-            meal_button4 = Checkbox(screen, width_delta * 7, height_delta * 4, 8, caption='Heavy meal', font_color=(255, 255, 255))
-            meal_button5 = Checkbox(screen, width_delta * 9, height_delta * 4, 9, caption='Not sure', font_color=(255, 255, 255))
-
-            meal_boxes = []
-            meal_boxes.append(meal_button)
-            meal_boxes.append(meal_button2)
-            meal_boxes.append(meal_button3)
-            meal_boxes.append(meal_button4)
-            meal_boxes.append(meal_button5)
-
-            yes_exercise = Checkbox(screen, width_delta * 5, height_delta * 8, 10, caption='yes', font_color=(255, 255, 255))
-            no_exercise = Checkbox(screen, width_delta * 6, height_delta * 8, 11, caption='no', font_color=(255, 255, 255))
-
-            exercise_bool_boxes = []
-            exercise_bool_boxes.append(yes_exercise)
-            exercise_bool_boxes.append(no_exercise)
-
             screen.blit(stimulant_text, stimulant_rect)
             screen.blit(meal_text, meal_rect)
             screen.blit(food_description_text, food_description_rect)
@@ -264,6 +265,14 @@ def main():
                 if event.type == pygame.QUIT:
                     running = False
                     break
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                        for box_holder in all_boxes:
+                            for box in box_holder:
+                                box.update_checkbox(event)
+                                if box.checked:  # If this box is checked
+                                    for b in box_holder:
+                                        if b != box:
+                                            b.checked = False  # Uncheck other boxes
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
