@@ -73,6 +73,7 @@ def main():
     free_response_index = 0
     identity_answers = ["", "", ""]
     free_response_answers = ["", ""]
+    button_answers = [-1, -1, -1]
     questionaire_answers = {}
 
     # Questionaire Button Positioning
@@ -203,7 +204,7 @@ def main():
                         identity_index -= 1
                     elif event.key == pygame.K_BACKSPACE:
                         identity_answers[identity_index] = identity_answers[identity_index] [:-1]
-                    elif event.key == pygame.K_RETURN: #TODO: Replace Enter to prevent accidents?
+                    elif event.key == pygame.K_RETURN:
                         in_questionaire_subject = False 
                         in_questionaire_physiological = True
                         #TODO: Check for prev subject name to skip over questionaire
@@ -284,7 +285,11 @@ def main():
                         free_response_index -= 1
                     elif event.key == pygame.K_BACKSPACE:
                         free_response_answers[free_response_index] = free_response_answers[free_response_index] [:-1]
-                    elif event.key == pygame.K_RETURN: #TODO: Replace Enter for accidents?
+                    elif event.key == pygame.K_RETURN:
+                        for ind, box_holder in enumerate(all_boxes):
+                            for count, box in enumerate(box_holder):
+                                if box.checked:
+                                    button_answers[ind] = count
                         in_questionaire_physiological = False
                     else:
                         free_response_answers[free_response_index] += event.unicode
