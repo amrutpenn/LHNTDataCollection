@@ -13,6 +13,7 @@ import datetime
 from datetime import timedelta
 import pandas as pd
 from boxsdk import Client, OAuth2
+import zipfile
 import os
 
 def authenticate():
@@ -39,6 +40,36 @@ def upload_file(client, folder_id, local_file_path):
     uploaded_file = client.folder(folder_id).upload(local_file_path, file_name)
     print(f'File {file_name} uploaded to Box folder {folder_id} with ID {uploaded_file.id}')
     return uploaded_file.id
+
+def zip_directory(dir_name, zip_name):
+    """
+    Zips the directory specified by zip_name.
+
+    Assumes the the directory to be zipped is located within the script directory
+    
+    Writes the zipped file back into the script directory
+
+    """
+
+    # Establish paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    sub_dir_path = os.path.join(script_dir, dir_name)
+    zip_file_path = os.path.join(script_dir, zip_name)
+
+     # Create the zip file
+    with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Walk through the subdirectory and add each file to the zip file
+        for root, dirs, files in os.walk(sub_dir_path):
+            for file in files:
+                # Get the full file path
+                full_path = os.path.join(root, file)
+                # Add file to the zip file, keeping the directory structure
+                zipf.write(full_path, os.path.relpath(full_path, sub_dir_path))
+    
+    # Return the path to the created zip file
+    return zip_file_path
+
+
 
 def find_serial_port():
     """
@@ -139,6 +170,7 @@ def create_user_directory(first_name, last_name, session_num):
     new_dir_path = os.path.join(script_dir, dir_name)
     os.mkdir(new_dir_path)
     return dir_name
+
 class EEGProcessor:
     def __init__(self):
         # Initialize BrainFlow
@@ -621,6 +653,17 @@ def main():
             screen.blit(continue_text, continue_rect)
             screen.blit(quit_text, quit_rect)
             pygame.display.flip()
+
+            # Zip the data and upload it
+
+            # Needs clarity from UI team
+            #metadata = get_user_data(eid_response) # does eid_response hold the actual string?
+            # dir_name should be saved earlier when calling create_user_directory
+            #zip_path = zip_directory(dir_name, dir_name + '.zip')
+            #client = authenticate()
+            #upload_file(client, '289622073398', zip_path)
+
+
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
