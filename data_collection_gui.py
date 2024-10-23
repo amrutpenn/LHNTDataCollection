@@ -1,25 +1,254 @@
 import pygame
 import sys
 import time
+import pickle
+import numpy as np
+from scipy.signal import butter, lfilter, iirnotch
 from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
 from checkbox import Checkbox
+import platform
+import serial
+import serial.tools.list_ports
+import datetime
+from datetime import timedelta
+import pandas as pd
+from boxsdk import Client, OAuth2
+import os
 
-def save_data():
+def authenticate():
+    client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
+    client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
+    # dev token HAS to be refreshed during every session for now, it only lasts an hour
+    developer_token = '3CWZGA2Ow0I9yjJKHCSv30vEZjI5POc0'
+    auth = OAuth2(
+        client_id=client_id,
+        client_secret=client_secret,
+        access_token=developer_token
+    )
+    return Client(auth)
+
+def download_file(client, file_id, download_dir):
+    file = client.file(file_id).get()
+    download_path = os.path.join(download_dir, file.name)
+    with open(download_path, 'wb') as open_file:
+        file.download_to(open_file)
+    print(f'{file.name} has been downloaded to {download_path}')
+
+def upload_file(client, folder_id, local_file_path):
+    file_name = os.path.basename(local_file_path)
+    uploaded_file = client.folder(folder_id).upload(local_file_path, file_name)
+    print(f'File {file_name} uploaded to Box folder {folder_id} with ID {uploaded_file.id}')
+    return uploaded_file.id
+
+def find_serial_port():
     """
-    Placeholder function for saving EEG data.
-    Implement data saving logic here.
+    Automatically find the correct serial port for the device across different operating systems.
+    
+    Returns:
+        str: The path of the detected serial port, or None if not found.
     """
-    pass  # To be implemented later
+    system = platform.system()
+    ports = list(serial.tools.list_ports.comports())
+    
+    for port in ports:
+        if system == "Darwin":  # macOS
+            if any(identifier in port.device.lower() for identifier in ["usbserial", "cu.usbmodem", "tty.usbserial"]):
+                return port.device
+        elif system == "Windows":
+            if "com" in port.device.lower():
+                return port.device
+        elif system == "Linux":
+            if "ttyUSB" in port.device or "ttyACM" in port.device:
+                return port.device
+    
+    return None
+
+# Function to check if a user is in the table and last survey time
+def check_user_table(table, eid):
+    # Check all rows for the name
+    for i in range(table.shape[0]):
+        if table.loc[i, 'EID'] == eid:
+            table_time = datetime.datetime.strptime(table.loc[i, 'LastTime'], '%Y-%m-%d %H:%M:%S.%f')
+            # Update 'SessionNum' using loc to avoid the chained assignment warning
+            table.loc[i, 'SessionNum'] += 1
+            delta = datetime.datetime.now() - table_time
+            seconds = delta.total_seconds()
+            if seconds < 43200:  # 12 hours = 12*60*60 = 43200
+                # Don't do survey
+                return 0
+            break
+    # Do survey
+    return 1
+
+def track_user(table, first, last, eid, stim_use_TF, caffeine_mg, meal_size,
+               meal_desc, exercised_TF, exercise_desc, hair_product, other_hair):
+    present = 0
+    index = 0
+    # Check if the user is already in the table
+    for i in range(table.shape[0]):
+        if table['First'][i] == first and table['Last'][i] == last and table['EID'][i] == eid:
+            present = 1
+            index = i
+            break
+
+    # If they're there, update their values with new responses
+    if present == 1:
+        table.at[index, 'StimulantUse'] = stim_use_TF
+        table.at[index, 'CaffeineMg'] = caffeine_mg
+        table.at[index, 'MealSize'] = meal_size
+        table.at[index, 'MealDesc'] = meal_desc
+        table.at[index, 'Exercised'] = exercised_TF
+        table.at[index, 'ExerciseDesc'] = exercise_desc
+        table.at[index, 'HairProduct'] = hair_product
+        table.at[index, 'OtherHair'] = other_hair
+        table.at[index, 'LastTime'] = str(datetime.datetime.now())
+        table.at[index, 'SessionNum'] = table.at[index, 'SessionNum'] + 1
+
+    # If they are not there, create a new row with their responses
+    else:
+        id = table.shape[0] + 1
+        new_row = pd.DataFrame({
+            'ID': [id],
+            'First': [first],
+            'Last': [last],
+            'EID': [eid],
+            'StimulantUse': [stim_use_TF],
+            'CaffeineMg': [caffeine_mg],
+            'MealSize': [meal_size],
+            'MealDesc': [meal_desc],
+            'Exercised': [exercised_TF],
+            'ExerciseDesc': [exercise_desc],
+            'HairProduct': [hair_product],
+            'OtherHair': [other_hair],
+            'LastTime': [str(datetime.datetime.now())],
+            'SessionNum': [1]  # New user, start at session 1
+        })
+        table = pd.concat([table, new_row], ignore_index=True)
+        index = table.shape[0] - 1  # Update index to the new row
+
+    # Return the updated table and the row as a DataFrame
+    return table, table.iloc[[index]]
+
+def get_user_data(table, eid):
+    row = table.loc[table['EID'] == eid]
+    return row
+
+def create_user_directory(first_name, last_name, session_num):
+    dir_name = first_name + '_' + last_name + '_' + str(session_num)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    new_dir_path = os.path.join(script_dir, dir_name)
+    os.mkdir(new_dir_path)
+    return dir_name
+class EEGProcessor:
+    def __init__(self):
+        # Initialize BrainFlow
+        BoardShim.enable_dev_board_logger()
+        params = BrainFlowInputParams()
+        #serial_port = find_serial_port()
+        #params.serial_port = serial_port
+        #self.board_id = BoardIds.CYTON_DAISY_BOARD.value
+        self.board_id = BoardIds.SYNTHETIC_BOARD.value
+        self.board = BoardShim(self.board_id, params)
+        self.board.prepare_session()
+        self.board.start_stream()
+        print("BrainFlow streaming started...")
+
+        # Sampling rate and window size
+        self.sampling_rate = BoardShim.get_sampling_rate(self.board_id)
+        self.window_size_sec = 7  # seconds
+        self.window_size_samples = int(self.window_size_sec * self.sampling_rate)
+
+        # we set raw window size to 10 seconds
+        self.window_size_raw = int(10 * self.sampling_rate)
+        self.lowcut = 1.0
+        self.highcut = 50.0
+        self.notch = 60.0
+
+        # Get EEG channels
+        self.eeg_channels = BoardShim.get_eeg_channels(self.board_id)
+
+        # Initialize buffers
+        self.raw_data_buffer = np.empty((len(self.eeg_channels), 0))
+        self.processed_data_buffer = np.empty((len(self.eeg_channels), 0))
+
+    def stop(self):
+        # Stop the data stream and release the session
+        self.board.stop_stream()
+        self.board.release_session()
+        print("BrainFlow streaming stopped.")
+
+    def get_recent_data(self):
+        """
+        Returns the most recent 7 seconds of processed EEG data.
+
+        The data is bandpass filtered, notch filtered, and z-scored.
+        Each data point is filtered only once.
+        """
+        data = self.board.get_board_data() 
+        if data.shape[1] == 0:
+            # No new data
+            pass
+        else:
+        
+            # Append new raw data to the raw_data_buffer
+            eeg_data = data[self.eeg_channels, :]
+            self.raw_data_buffer = np.hstack((self.raw_data_buffer, eeg_data))
+
+            # Process new data
+            new_processed_data = np.empty(self.raw_data_buffer.shape)
+            # It is important to process each channel separately (why?)
+            for i in range(len(self.eeg_channels)):
+
+                # it is important to use the whole buffer for filtering (why?)
+                # Get the channel data
+                channel_data = self.raw_data_buffer[i, :].copy()
+
+                # Bandpass filter
+                b, a = butter(2, [self.lowcut, self.highcut], btype='band', fs=self.sampling_rate)
+                channel_data = lfilter(b, a, channel_data)
+                
+                # Notch filter
+                b, a = iirnotch(self.notch, 30, fs=self.sampling_rate)
+                channel_data = lfilter(b, a, channel_data)
+
+                # Z-score
+                mean = np.mean(channel_data)
+                std = np.std(channel_data)
+                if std == 0:
+                    std = 1  
+                channel_data = (channel_data - mean) / std
+                # add channel dimension to channel_data
+                new_processed_data[i, :] =  channel_data
+
+            
+            self.processed_data_buffer = np.hstack((self.processed_data_buffer, new_processed_data))
+
+            max_buffer_size = self.window_size_samples * 2
+            if self.raw_data_buffer.shape[1] > self.window_size_raw:
+                self.raw_data_buffer = self.raw_data_buffer[:, -self.window_size_raw:]
+            if self.processed_data_buffer.shape[1] > max_buffer_size:
+                self.processed_data_buffer = self.processed_data_buffer[:, -max_buffer_size:]
+
+        if self.processed_data_buffer.shape[1] >= self.window_size_samples:
+            recent_data = self.processed_data_buffer[:, -self.window_size_samples:]
+        else:
+            recent_data = self.processed_data_buffer
+
+        return recent_data
+    
+#Save last 7 seconds of signal and metadata to its own .pkl file in tthe session directory
+def save_data(eeg_processor, metadata, direction, trial_num, directory, period):
+    sig = eeg_processor.get_recent_data()
+    #Establish a filename - I think maybe we could do [Direction]_[Number].pkl but maybe we could just work that out
+    filename = direction + '_' + trial_num + '_' + period + '.pkl'
+
+    #Dump signal and metadata into pickle file - this saves into the folder that we created earlier
+    with open(directory + filename, 'wb') as f:
+        pickle.dump((sig, metadata), f)
+    
 
 def main():
-    # Initialize BrainFlow
-    BoardShim.enable_dev_board_logger()
-    params = BrainFlowInputParams()
-    board_id = BoardIds.SYNTHETIC_BOARD.value
-    board = BoardShim(board_id, params)
-    board.prepare_session()
-    board.start_stream()
-    print("BrainFlow streaming started...")
+    eeg_processor = EEGProcessor()
 
     # Initialize Pygame
     pygame.init()
@@ -405,8 +634,8 @@ def main():
                         # Not fully sure if all of the following lines are necessary, but they are functional
                         in_after_session_menu = False
                         running = False
-                        board.stop_stream()
-                        board.release_session()
+                        eeg_processor.board.stop_stream()
+                        eeg_processor.board.release_session()
                         pygame.quit()
                         sys.exit()
         else:
@@ -440,7 +669,7 @@ def main():
                             running = False
                             break
                 # Placeholder for data collection during focus
-                save_data()
+                #save_data(eeg_processor, row, trial_number, direction, directory, 'Focus')
                 clock.tick(60)
 
             if not running:
@@ -560,7 +789,7 @@ def main():
 
                 pygame.display.flip()
                 # Placeholder for data collection during loading
-                save_data()
+                #save_data(eeg_processor, row, trial_number, direction, directory, 'Focus')
                 clock.tick(60)
 
             if not running:
