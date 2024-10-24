@@ -111,8 +111,8 @@ def check_user_table(table, eid):
     # Do survey
     return 1
 
-def track_user(table, first, last, eid, stim_use_TF, caffeine_mg, meal_size,
-               meal_desc, exercised_TF, exercise_desc, hair_product, other_hair):
+def track_user(table, first, last, eid, caffeine_mg, meal_size, meal_desc, exercised_TF,
+               exercise_desc, stim_use_TF = 0, hair_product= '', other_hair= ''):
     present = 0
     index = 0
     # Check if the user is already in the table
