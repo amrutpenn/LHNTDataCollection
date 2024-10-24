@@ -20,7 +20,7 @@ def authenticate():
     client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     # dev token HAS to be refreshed during every session for now, it only lasts an hour
-    developer_token = '3CWZGA2Ow0I9yjJKHCSv30vEZjI5POc0'
+    developer_token = '1N1UyiMlMV6ekgEiHBsqX3WbQzbnFKwn'
     auth = OAuth2(
         client_id=client_id,
         client_secret=client_secret,
@@ -34,12 +34,43 @@ def download_file(client, file_id, download_dir):
     with open(download_path, 'wb') as open_file:
         file.download_to(open_file)
     print(f'{file.name} has been downloaded to {download_path}')
+    return file.name
 
 def upload_file(client, folder_id, local_file_path):
     file_name = os.path.basename(local_file_path)
     uploaded_file = client.folder(folder_id).upload(local_file_path, file_name)
     print(f'File {file_name} uploaded to Box folder {folder_id} with ID {uploaded_file.id}')
     return uploaded_file.id
+
+def update_file(client, file_id, new_file_path):
+    """
+    Overwrites an existing file in Box by uploading a new version.
+    
+    Parameters:
+    client (Client): The authenticated Box client object.
+    file_id (str): The ID of the file to be updated.
+    new_file_path (str): Path to the new file that will replace the existing one.
+    
+    Returns:
+    str: The name of the file that was updated.
+    """
+    if not os.path.exists(new_file_path):
+        raise FileNotFoundError(f"The file {new_file_path} does not exist.")
+    
+    try:
+        # Get the file object from Box by its ID
+        box_file = client.file(file_id).get()
+        
+        # Upload new content as a new version of the file
+        with open(new_file_path, 'rb') as new_file:
+            updated_file = box_file.update_contents(new_file)
+        
+        print(f'File "{updated_file.name}" was successfully updated.')
+        return updated_file.name
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 def zip_directory(dir_name, zip_name):
     """
@@ -165,7 +196,7 @@ def get_user_data(table, eid):
     return row
 
 def create_user_directory(first_name, last_name, session_num):
-    dir_name = first_name + '_' + last_name + '_' + str(session_num)
+    dir_name = first_name + '_' + last_name + '_' + 'Session' + str(session_num)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     new_dir_path = os.path.join(script_dir, dir_name)
     os.mkdir(new_dir_path)
@@ -269,18 +300,32 @@ class EEGProcessor:
         return recent_data
     
 #Save last 7 seconds of signal and metadata to its own .pkl file in tthe session directory
-def save_data(eeg_processor, metadata, direction, trial_num, directory, period):
+def save_data(eeg_processor, metadata, direction, trial_num, directory):
     sig = eeg_processor.get_recent_data()
     #Establish a filename - I think maybe we could do [Direction]_[Number].pkl but maybe we could just work that out
-    filename = direction + '_' + trial_num + '_' + period + '.pkl'
+    filename = direction + '_' + str(trial_num) + '.pkl'
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    intermediate = os.path.join(script_dir, directory)
+    filepath = os.path.join(intermediate, filename)
 
     #Dump signal and metadata into pickle file - this saves into the folder that we created earlier
-    with open(directory + filename, 'wb') as f:
+    with open(filepath, 'wb') as f:
         pickle.dump((sig, metadata), f)
     
 
 def main():
     eeg_processor = EEGProcessor()
+    
+    # Load table from Box
+    client = authenticate()
+    file_id = '1679766376012'
+    download_dir = os.path.dirname(os.path.abspath(__file__))
+    table_name = download_file(client, file_id, download_dir)
+    print("Table Name:", table_name)
+    #LHNTDataCollection\user_table.csv
+    user_table = pd.read_csv("LHNTDataCollection/" + table_name)
+    
 
     # Initialize Pygame
     pygame.init()
@@ -339,7 +384,6 @@ def main():
     identity_answers = ["", "", ""]
     free_response_answers = ["", ""]
     button_answers = [-1, -1, -1]
-    questionaire_answers = {}
 
     # Questionaire Button Positioning
     height_delta = infoObject.current_h // 11
@@ -377,7 +421,7 @@ def main():
     exercise_bool_boxes = []
     exercise_bool_boxes.append(yes_exercise)
     exercise_bool_boxes.append(no_exercise)
-
+    
     direction = 'left'  # Start with 'left' and alternate
 
     while running:
@@ -562,6 +606,39 @@ def main():
                             for count, box in enumerate(box_holder):
                                 if box.checked:
                                     button_answers[ind] = count
+                        
+                        #NEEDS TO GET MOVED AT SOME POINT
+                        #Save results of questionnaire locally
+                        first_name = identity_answers[0]
+                        last_name = identity_answers[1]
+                        eid = identity_answers[2]
+                        stim = ""
+                        meal = ""
+                        describe_meal = free_response_answers[0]
+                        exercise_yn = ""
+                        exercise_description = free_response_answers[1]
+
+
+                        for box in stimulant_boxes:
+                            if box.get_checked():
+                                stim = box.get_caption()
+                                break
+
+                        for box in meal_boxes:
+                            if box.get_checked():
+                                meal = box.get_caption()
+                                break
+
+                        for box in exercise_bool_boxes:
+                            if box.get_checked():
+                                exercise = box.get_caption()
+
+                        #Use questionnaire to update metadata and track user
+
+                        user_table, metadata = track_user(user_table, first_name, last_name, eid, stim, meal, 
+                                                          describe_meal, exercise_yn, exercise_description)
+                        session_num = metadata.iloc[0, 13]
+                        directory = create_user_directory(first_name, last_name, session_num)
                         in_questionaire_physiological = False
                     else:
                         free_response_answers[free_response_index] += event.unicode
@@ -657,14 +734,14 @@ def main():
             pygame.display.flip()
 
             # Zip the data and upload it
-
-            # Needs clarity from UI team
-            #metadata = get_user_data(eid_response) # does eid_response hold the actual string?
-            # dir_name should be saved earlier when calling create_user_directory
-            #zip_path = zip_directory(dir_name, dir_name + '.zip')
-            #client = authenticate()
-            #upload_file(client, '289622073398', zip_path)
-
+            zip_path = zip_directory(directory, directory + '.zip')
+            client = authenticate()
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            table_path = os.path.join(script_dir, table_name)
+            #user_table_path = 
+            file_id = '1679766376012'
+            upload_file(client, '289622073398', zip_path) # uploads the zipped directory
+            update_file(client, file_id, table_path) # updates the user table
 
 
             for event in pygame.event.get():
@@ -713,8 +790,6 @@ def main():
                         if event.key == pygame.K_ESCAPE:
                             running = False
                             break
-                # Placeholder for data collection during focus
-                #save_data(eeg_processor, row, trial_number, direction, directory, 'Focus')
                 clock.tick(60)
 
             if not running:
@@ -833,8 +908,7 @@ def main():
                     ))
 
                 pygame.display.flip()
-                # Placeholder for data collection during loading
-                #save_data(eeg_processor, row, trial_number, direction, directory, 'Focus')
+                save_data(eeg_processor, metadata, direction, trial_number, directory)
                 clock.tick(60)
 
             if not running:

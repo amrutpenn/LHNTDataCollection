@@ -61,6 +61,12 @@ class Checkbox:
             self.click = True
             self._update(event_object)
 
+    def get_caption(self):
+        return self.caption
+    
+    def get_checked(self):
+        return self.checked
+
 if __name__=='__main__':
     boxes = []
     screen=pygame.display.set_mode([800, 600])
