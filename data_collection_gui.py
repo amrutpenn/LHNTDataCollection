@@ -378,8 +378,9 @@ def main():
     exercise_bool_boxes.append(yes_exercise)
     exercise_bool_boxes.append(no_exercise)
 
+    direction = 'left'  # Start with 'left' and alternate
+
     while running:
-        direction = 'left'  # Start with 'left' and alternate
         if in_menu:
             # Display Main Menu
             screen.fill(BLACK)
@@ -873,8 +874,13 @@ def main():
                 break
 
             # Alternate Direction
-            direction = 'right' if direction == 'left' else 'left'
-            trial_number += 1
+            if direction == 'left':
+                direction = 'right'
+            else:
+                direction = 'left'
+
+            if direction == 'left':
+                trial_number += 1
 
             # Check if all trials are completed
             if trial_number > total_trials:
