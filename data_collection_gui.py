@@ -20,7 +20,7 @@ def authenticate():
     client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     # dev token HAS to be refreshed during every session for now, it only lasts an hour
-    developer_token = '1N1UyiMlMV6ekgEiHBsqX3WbQzbnFKwn'
+    developer_token = 'DwNjB1uBY5nn8BROOJZLW98nZ9u4L7zL'
     auth = OAuth2(
         client_id=client_id,
         client_secret=client_secret,
