@@ -305,6 +305,7 @@ def main():
     in_input = False
     in_trial_menu = False
     in_questionaire_subject = False
+    in_questionaire_physiological = False
     in_after_session_menu = False
     trial_number = 1
     total_trials = 1 # Default number of trials
@@ -345,8 +346,8 @@ def main():
     width_delta = infoObject.current_w // 11
 
     stim_button = Checkbox(screen, width_delta, height_delta * 2, 0, caption='0 mg', font_color=(255, 255, 255))
-    stim_button2 = Checkbox(screen, width_delta * 3, height_delta * 2, 1, caption='< 50 mg', font_color=(255, 255, 255))
-    stim_button3 = Checkbox(screen, width_delta * 5, height_delta * 2, 2, caption='50 - 100 mg', font_color=(255, 255, 255))
+    stim_button2 = Checkbox(screen, width_delta * 3, height_delta * 2, 1, caption='1 - 49 mg', font_color=(255, 255, 255))
+    stim_button3 = Checkbox(screen, width_delta * 5, height_delta * 2, 2, caption='50 - 99 mg', font_color=(255, 255, 255))
     stim_button4 = Checkbox(screen, width_delta * 7, height_delta * 2, 3, caption='100 - 150 mg', font_color=(255, 255, 255))
     stim_button5 = Checkbox(screen, width_delta * 9, height_delta * 2, 4, caption='> 150 mg', font_color=(255, 255, 255))
 
