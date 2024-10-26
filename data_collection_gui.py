@@ -20,7 +20,7 @@ def authenticate():
     client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     # dev token HAS to be refreshed during every session for now, it only lasts an hour
-    developer_token = 'DwNjB1uBY5nn8BROOJZLW98nZ9u4L7zL'
+    developer_token = 'QLqoDyRU1srsJIFAVnMc1I72Pumyqn63'
     auth = OAuth2(
         client_id=client_id,
         client_secret=client_secret,
@@ -351,6 +351,7 @@ def main():
     in_trial_menu = False
     in_questionaire_subject = False
     in_questionaire_physiological = False
+    in_buffer_screen = False
     in_after_session_menu = False
     trial_number = 1
     total_trials = 1 # Default number of trials
@@ -640,8 +641,38 @@ def main():
                         session_num = metadata.iloc[0, 13]
                         directory = create_user_directory(first_name, last_name, session_num)
                         in_questionaire_physiological = False
+                        in_buffer_screen = True
                     else:
                         free_response_answers[free_response_index] += event.unicode
+
+
+        elif in_buffer_screen: 
+            # Display buffer screen that appears before the trials
+            screen.fill(BLACK)
+            buffer_screen_title = large_font.render("Ready?", True, WHITE)
+            start_trial_text = medium_font.render("Press S to Start Trial", True, GREEN)
+
+            # Positioning Text
+            buffer_screen_title_rect = buffer_screen_title.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 4))
+            start_trial_text_rect = start_trial_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 50))
+
+            # Blit Text to Screen
+            screen.blit(buffer_screen_title, buffer_screen_title_rect)
+            screen.blit(start_trial_text, start_trial_text_rect)
+            pygame.display.flip()
+
+            # Process Keyboard Inputs Received at the Buffer Menu
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+                        break
+                    if event.key == pygame.K_s:
+                        in_buffer_screen = False
+
 
         elif in_input:
             # Display Input Menu for Setting Number of Trials
