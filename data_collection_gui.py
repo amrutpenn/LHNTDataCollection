@@ -20,7 +20,7 @@ def authenticate():
     client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     # dev token HAS to be refreshed during every session for now, it only lasts an hour
-    developer_token = 'DwNjB1uBY5nn8BROOJZLW98nZ9u4L7zL'
+    developer_token = 'BUXNuKKbEqlDNDiFk90pY83dn4krXWVG'
     auth = OAuth2(
         client_id=client_id,
         client_secret=client_secret,
@@ -99,8 +99,6 @@ def zip_directory(dir_name, zip_name):
     
     # Return the path to the created zip file
     return zip_file_path
-
-
 
 def find_serial_port():
     """
@@ -325,7 +323,7 @@ def main():
     print("Table Name:", table_name)
     #LHNTDataCollection\user_table.csv
     user_table = pd.read_csv("LHNTDataCollection/" + table_name)
-    
+
 
     # Initialize Pygame
     pygame.init()
@@ -351,12 +349,12 @@ def main():
     in_trial_menu = False
     in_questionaire_subject = False
     in_questionaire_physiological = False
+    in_buffer_screen = False
     in_after_session_menu = False
     trial_number = 1
     total_trials = 1 # Default number of trials
     time_between_sessions = 180 # number of seconds to wait between sessions of data collection
     start_enable_time = time.time() # the time at/after which the start button is enabled
-    
 
     # Bar Settings
     green_bar_width = 20
@@ -425,6 +423,7 @@ def main():
     direction = 'left'  # Start with 'left' and alternate
 
     while running:
+
         if in_menu:
             # Display Main Menu
             screen.fill(BLACK)
@@ -453,6 +452,7 @@ def main():
                 screen.blit(wait_text, wait_rect)
             pygame.display.flip()
 
+            # Processing Input at the Main Menu
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -469,8 +469,9 @@ def main():
                     elif event.key == pygame.K_q:
                         running = False
 
-        elif in_questionaire_subject:
 
+        elif in_questionaire_subject:
+            # Displays the questions about the subject 
             screen.fill(BLACK)
 
             # Form questions from questionaire
@@ -529,7 +530,7 @@ def main():
 
 
         elif in_questionaire_physiological:
-
+            # Display the questions about the subject's physiological condition
             screen.fill(BLACK)
 
             # Multiple Choice Questions
@@ -565,7 +566,6 @@ def main():
             screen.blit(food_response, food_response_rect)
             screen.blit(exercise_response, exercise_response_rect)
 
-
             all_boxes = []
             all_boxes.append(stimulant_boxes)
             all_boxes.append(meal_boxes)
@@ -574,7 +574,6 @@ def main():
                 for box in box_holder:
                     box.render_checkbox()
             pygame.display.flip()
-            
             
             # Loop
             # Subject info page handling
@@ -640,8 +639,38 @@ def main():
                         session_num = metadata.iloc[0, 13]
                         directory = create_user_directory(first_name, last_name, session_num)
                         in_questionaire_physiological = False
+                        in_buffer_screen = True
                     else:
                         free_response_answers[free_response_index] += event.unicode
+
+
+        elif in_buffer_screen: 
+            # Display buffer screen that appears before the trials
+            screen.fill(BLACK)
+            buffer_screen_title = large_font.render("Ready?", True, WHITE)
+            start_trial_text = medium_font.render("Press S to Start Trial", True, GREEN)
+
+            # Positioning Text
+            buffer_screen_title_rect = buffer_screen_title.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 4))
+            start_trial_text_rect = start_trial_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 50))
+
+            # Blit Text to Screen
+            screen.blit(buffer_screen_title, buffer_screen_title_rect)
+            screen.blit(start_trial_text, start_trial_text_rect)
+            pygame.display.flip()
+
+            # Processing Inputs at the Buffer Screen
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+                        break
+                    if event.key == pygame.K_s:
+                        in_buffer_screen = False
+
 
         elif in_input:
             # Display Input Menu for Setting Number of Trials
@@ -661,6 +690,7 @@ def main():
             screen.blit(instructions_text, instructions_rect)
             pygame.display.flip()
 
+            # Processing Inputs at the Input Menu
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -688,6 +718,7 @@ def main():
                     elif event.unicode.isdigit():
                         input_text += event.unicode
 
+
         elif in_trial_menu: 
             # Display Trial Menu (Accessible via 'M' during trials)
             screen.fill(BLACK)
@@ -706,6 +737,7 @@ def main():
             screen.blit(resume_text, resume_rect)
             pygame.display.flip()
 
+            # Processing Inputs at the Trial Menu 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -714,8 +746,9 @@ def main():
                         running = False
                     elif event.key == pygame.K_r:
                         in_trial_menu = False
-        elif in_after_session_menu:
 
+
+        elif in_after_session_menu:
             # Display After Session Menu
             screen.fill(BLACK)
             question_text = large_font.render("Do you want to continue?", True, WHITE)
@@ -743,7 +776,7 @@ def main():
             upload_file(client, '289622073398', zip_path) # uploads the zipped directory
             update_file(client, file_id, table_path) # updates the user table
 
-
+            # Processsing Inputs at the After Session Menu
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -760,6 +793,8 @@ def main():
                         eeg_processor.board.release_session()
                         pygame.quit()
                         sys.exit()
+
+
         else:
             # Display Current Trial Number
             screen.fill(BLACK)
@@ -969,7 +1004,7 @@ def main():
                 trial_number = 1  # Reset trial number
                 in_after_session_menu = True
 
-    # Handle Trial Menu outside the main loop to avoid missing quit events
+        # Handle Trial Menu outside the main loop to avoid missing quit events
         while in_trial_menu and running:
             # Display Trial Menu (Accessible via 'M' during trials)
             screen.fill(BLACK)
