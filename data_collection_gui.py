@@ -20,7 +20,7 @@ def authenticate():
     client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     # dev token HAS to be refreshed during every session for now, it only lasts an hour
-    developer_token = 'BUXNuKKbEqlDNDiFk90pY83dn4krXWVG'
+    developer_token = 'wdCCVGlJvNCgCTMuTGyLEVw813z3LykO'
     auth = OAuth2(
         client_id=client_id,
         client_secret=client_secret,
@@ -34,7 +34,7 @@ def download_file(client, file_id, download_dir):
     with open(download_path, 'wb') as open_file:
         file.download_to(open_file)
     print(f'{file.name} has been downloaded to {download_path}')
-    return file.name
+    return download_path
 
 def upload_file(client, folder_id, local_file_path):
     file_name = os.path.basename(local_file_path)
@@ -61,11 +61,10 @@ def update_file(client, file_id, new_file_path):
         # Get the file object from Box by its ID
         box_file = client.file(file_id).get()
         
-        # Upload new content as a new version of the file
+        # Use update_contents_with_stream to handle the file update
         with open(new_file_path, 'rb') as new_file:
-            updated_file = box_file.update_contents(new_file)
-        
-        print(f'File "{updated_file.name}" was successfully updated.')
+            updated_file = box_file.update_contents_with_stream(new_file)
+            
         return updated_file.name
     
     except Exception as e:
@@ -297,7 +296,7 @@ class EEGProcessor:
 
         return recent_data
     
-#Save last 7 seconds of signal and metadata to its own .pkl file in tthe session directory
+#Save last 7 seconds of signal and metadata to its own .pkl file in the session directory
 def save_data(eeg_processor, metadata, direction, trial_num, directory):
     sig = eeg_processor.get_recent_data()
     #Establish a filename - I think maybe we could do [Direction]_[Number].pkl but maybe we could just work that out
@@ -319,11 +318,9 @@ def main():
     client = authenticate()
     file_id = '1679766376012'
     download_dir = os.path.dirname(os.path.abspath(__file__))
-    table_name = download_file(client, file_id, download_dir)
-    print("Table Name:", table_name)
-    #LHNTDataCollection\user_table.csv
-    user_table = pd.read_csv("LHNTDataCollection/" + table_name)
-
+    table_path = download_file(client, file_id, download_dir)
+    print("Table saved to " + table_path)
+    user_table = pd.read_csv(table_path)
 
     # Initialize Pygame
     pygame.init()
@@ -355,6 +352,8 @@ def main():
     total_trials = 1 # Default number of trials
     time_between_sessions = 180 # number of seconds to wait between sessions of data collection
     start_enable_time = time.time() # the time at/after which the start button is enabled
+    saved_questionnaire_data = False
+    uploaded_session = False
 
     # Bar Settings
     green_bar_width = 20
@@ -605,46 +604,47 @@ def main():
                             for count, box in enumerate(box_holder):
                                 if box.checked:
                                     button_answers[ind] = count
-                        
-                        #NEEDS TO GET MOVED AT SOME POINT
-                        #Save results of questionnaire locally
-                        first_name = identity_answers[0]
-                        last_name = identity_answers[1]
-                        eid = identity_answers[2]
-                        stim = ""
-                        meal = ""
-                        describe_meal = free_response_answers[0]
-                        exercise_yn = ""
-                        exercise_description = free_response_answers[1]
-
-
-                        for box in stimulant_boxes:
-                            if box.get_checked():
-                                stim = box.get_caption()
-                                break
-
-                        for box in meal_boxes:
-                            if box.get_checked():
-                                meal = box.get_caption()
-                                break
-
-                        for box in exercise_bool_boxes:
-                            if box.get_checked():
-                                exercise = box.get_caption()
-
-                        #Use questionnaire to update metadata and track user
-
-                        user_table, metadata = track_user(user_table, first_name, last_name, eid, stim, meal, 
-                                                          describe_meal, exercise_yn, exercise_description)
-                        session_num = metadata.iloc[0, 13]
-                        directory = create_user_directory(first_name, last_name, session_num)
                         in_questionaire_physiological = False
                         in_buffer_screen = True
                     else:
                         free_response_answers[free_response_index] += event.unicode
 
 
-        elif in_buffer_screen: 
+        elif in_buffer_screen:
+            if not saved_questionnaire_data:
+                #Save results of questionnaire locally
+                first_name = identity_answers[0]
+                last_name = identity_answers[1]
+                eid = identity_answers[2]
+                stim = ""
+                meal = ""
+                describe_meal = free_response_answers[0]
+                exercise_yn = ""
+                exercise_description = free_response_answers[1]
+
+                #Iterate through checkbox arrays to find checked boxes and store their values
+                for box in stimulant_boxes:
+                    if box.get_checked():
+                        stim = box.get_caption()
+                        break
+
+                for box in meal_boxes:
+                    if box.get_checked():
+                        meal = box.get_caption()
+                        break
+
+                for box in exercise_bool_boxes:
+                    if box.get_checked():
+                        exercise = box.get_caption()
+
+                #Use questionnaire to update metadata and track user
+                user_table, metadata = track_user(user_table, first_name, last_name, eid, stim, meal, 
+                                                    describe_meal, exercise_yn, exercise_description)
+                user_table.to_csv(table_path, index=False)  # Save modifications locally
+                session_num = metadata.iloc[0, 13]
+                directory = create_user_directory(first_name, last_name, session_num)
+                saved_questionnaire_data = True
+        
             # Display buffer screen that appears before the trials
             screen.fill(BLACK)
             buffer_screen_title = large_font.render("Ready?", True, WHITE)
@@ -766,15 +766,16 @@ def main():
             screen.blit(quit_text, quit_rect)
             pygame.display.flip()
 
-            # Zip the data and upload it
-            zip_path = zip_directory(directory, directory + '.zip')
-            client = authenticate()
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            table_path = os.path.join(script_dir, table_name)
-            #user_table_path = 
-            file_id = '1679766376012'
-            upload_file(client, '289622073398', zip_path) # uploads the zipped directory
-            update_file(client, file_id, table_path) # updates the user table
+            if not uploaded_session:
+                # Zip the data and upload it
+                zip_path = zip_directory(directory, directory + '.zip')
+                client = authenticate()
+                file_id = '1679766376012'
+                upload_file(client, '289622073398', zip_path) # uploads the zipped directory
+                uploaded_session = True
+
+            #Update the table in Box
+            update_file(client, file_id, table_path)
 
             # Processsing Inputs at the After Session Menu
             for event in pygame.event.get():
