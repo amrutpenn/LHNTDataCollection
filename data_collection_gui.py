@@ -16,89 +16,6 @@ from boxsdk import Client, OAuth2
 import zipfile
 import os
 
-def authenticate():
-    client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
-    client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
-    # dev token HAS to be refreshed during every session for now, it only lasts an hour
-    developer_token = 'wdCCVGlJvNCgCTMuTGyLEVw813z3LykO'
-    auth = OAuth2(
-        client_id=client_id,
-        client_secret=client_secret,
-        access_token=developer_token
-    )
-    return Client(auth)
-
-def download_file(client, file_id, download_dir):
-    file = client.file(file_id).get()
-    download_path = os.path.join(download_dir, file.name)
-    with open(download_path, 'wb') as open_file:
-        file.download_to(open_file)
-    print(f'{file.name} has been downloaded to {download_path}')
-    return download_path
-
-def upload_file(client, folder_id, local_file_path):
-    file_name = os.path.basename(local_file_path)
-    uploaded_file = client.folder(folder_id).upload(local_file_path, file_name)
-    print(f'File {file_name} uploaded to Box folder {folder_id} with ID {uploaded_file.id}')
-    return uploaded_file.id
-
-def update_file(client, file_id, new_file_path):
-    """
-    Overwrites an existing file in Box by uploading a new version.
-    
-    Parameters:
-    client (Client): The authenticated Box client object.
-    file_id (str): The ID of the file to be updated.
-    new_file_path (str): Path to the new file that will replace the existing one.
-    
-    Returns:
-    str: The name of the file that was updated.
-    """
-    if not os.path.exists(new_file_path):
-        raise FileNotFoundError(f"The file {new_file_path} does not exist.")
-    
-    try:
-        # Get the file object from Box by its ID
-        box_file = client.file(file_id).get()
-        
-        # Use update_contents_with_stream to handle the file update
-        with open(new_file_path, 'rb') as new_file:
-            updated_file = box_file.update_contents_with_stream(new_file)
-            
-        return updated_file.name
-    
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
-
-def zip_directory(dir_name, zip_name):
-    """
-    Zips the directory specified by zip_name.
-
-    Assumes the the directory to be zipped is located within the script directory
-    
-    Writes the zipped file back into the script directory
-
-    """
-
-    # Establish paths
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    sub_dir_path = os.path.join(script_dir, dir_name)
-    zip_file_path = os.path.join(script_dir, zip_name)
-
-     # Create the zip file
-    with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Walk through the subdirectory and add each file to the zip file
-        for root, dirs, files in os.walk(sub_dir_path):
-            for file in files:
-                # Get the full file path
-                full_path = os.path.join(root, file)
-                # Add file to the zip file, keeping the directory structure
-                zipf.write(full_path, os.path.relpath(full_path, sub_dir_path))
-    
-    # Return the path to the created zip file
-    return zip_file_path
-
 def find_serial_port():
     """
     Automatically find the correct serial port for the device across different operating systems.
@@ -121,76 +38,6 @@ def find_serial_port():
                 return port.device
     
     return None
-
-# Function to check if a user is in the table and last survey time
-def check_user_table(table, eid):
-    # Check all rows for the name
-    for i in range(table.shape[0]):
-        if table.loc[i, 'EID'] == eid:
-            table_time = datetime.datetime.strptime(table.loc[i, 'LastTime'], '%Y-%m-%d %H:%M:%S.%f')
-            # Update 'SessionNum' using loc to avoid the chained assignment warning
-            table.loc[i, 'SessionNum'] += 1
-            delta = datetime.datetime.now() - table_time
-            seconds = delta.total_seconds()
-            if seconds < 43200:  # 12 hours = 12*60*60 = 43200
-                # Don't do survey
-                return 0
-            break
-    # Do survey
-    return 1
-
-def track_user(table, first, last, eid, caffeine_mg, meal_size, meal_desc, exercised_TF,
-               exercise_desc, stim_use_TF = 0, hair_product= '', other_hair= ''):
-    present = 0
-    index = 0
-    # Check if the user is already in the table
-    for i in range(table.shape[0]):
-        if table['First'][i] == first and table['Last'][i] == last and table['EID'][i] == eid:
-            present = 1
-            index = i
-            break
-
-    # If they're there, update their values with new responses
-    if present == 1:
-        table.at[index, 'StimulantUse'] = stim_use_TF
-        table.at[index, 'CaffeineMg'] = caffeine_mg
-        table.at[index, 'MealSize'] = meal_size
-        table.at[index, 'MealDesc'] = meal_desc
-        table.at[index, 'Exercised'] = exercised_TF
-        table.at[index, 'ExerciseDesc'] = exercise_desc
-        table.at[index, 'HairProduct'] = hair_product
-        table.at[index, 'OtherHair'] = other_hair
-        table.at[index, 'LastTime'] = str(datetime.datetime.now())
-        table.at[index, 'SessionNum'] = table.at[index, 'SessionNum'] + 1
-
-    # If they are not there, create a new row with their responses
-    else:
-        id = table.shape[0] + 1
-        new_row = pd.DataFrame({
-            'ID': [id],
-            'First': [first],
-            'Last': [last],
-            'EID': [eid],
-            'StimulantUse': [stim_use_TF],
-            'CaffeineMg': [caffeine_mg],
-            'MealSize': [meal_size],
-            'MealDesc': [meal_desc],
-            'Exercised': [exercised_TF],
-            'ExerciseDesc': [exercise_desc],
-            'HairProduct': [hair_product],
-            'OtherHair': [other_hair],
-            'LastTime': [str(datetime.datetime.now())],
-            'SessionNum': [1]  # New user, start at session 1
-        })
-        table = pd.concat([table, new_row], ignore_index=True)
-        index = table.shape[0] - 1  # Update index to the new row
-
-    # Return the updated table and the row as a DataFrame
-    return table, table.iloc[[index]]
-
-def get_user_data(table, eid):
-    row = table.loc[table['EID'] == eid]
-    return row
 
 def create_user_directory(first_name, last_name, session_num):
     dir_name = first_name + '_' + last_name + '_' + 'Session' + str(session_num)
@@ -299,7 +146,7 @@ class EEGProcessor:
 #Save last 7 seconds of signal and metadata to its own .pkl file in the session directory
 def save_data(eeg_processor, metadata, direction, trial_num, directory):
     sig = eeg_processor.get_recent_data()
-    #Establish a filename - I think maybe we could do [Direction]_[Number].pkl but maybe we could just work that out
+    #Establish a filename [direction]_[trial number].pkl
     filename = direction + '_' + str(trial_num) + '.pkl'
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -312,15 +159,8 @@ def save_data(eeg_processor, metadata, direction, trial_num, directory):
     
 
 def main():
+    session_num = input("Enter the session number: ")
     eeg_processor = EEGProcessor()
-    
-    # Load table from Box
-    client = authenticate()
-    file_id = '1679766376012'
-    download_dir = os.path.dirname(os.path.abspath(__file__))
-    table_path = download_file(client, file_id, download_dir)
-    print("Table saved to " + table_path)
-    user_table = pd.read_csv(table_path)
 
     # Initialize Pygame
     pygame.init()
@@ -353,7 +193,6 @@ def main():
     time_between_sessions = 180 # number of seconds to wait between sessions of data collection
     start_enable_time = time.time() # the time at/after which the start button is enabled
     saved_questionnaire_data = False
-    uploaded_session = False
 
     # Bar Settings
     green_bar_width = 20
@@ -637,12 +476,16 @@ def main():
                     if box.get_checked():
                         exercise = box.get_caption()
 
-                #Use questionnaire to update metadata and track user
-                user_table, metadata = track_user(user_table, first_name, last_name, eid, stim, meal, 
-                                                    describe_meal, exercise_yn, exercise_description)
-                user_table.to_csv(table_path, index=False)  # Save modifications locally
-                session_num = metadata.iloc[0, 13]
+                #Use questionnaire data to update metadata and create session directory
                 directory = create_user_directory(first_name, last_name, session_num)
+                metadata = {"First Name"            : first_name,
+                            "Last Name"             : last_name,
+                            "EID"                   : eid,
+                            "Stimulant Use"         : stim,
+                            "Meal Size"             : meal,
+                            "Meal Description"      : describe_meal,
+                            "Exercised"             : exercise_yn,
+                            "Exercise Description"  : exercise_description}
                 saved_questionnaire_data = True
         
             # Display buffer screen that appears before the trials
@@ -765,17 +608,6 @@ def main():
             screen.blit(continue_text, continue_rect)
             screen.blit(quit_text, quit_rect)
             pygame.display.flip()
-
-            if not uploaded_session:
-                # Zip the data and upload it
-                zip_path = zip_directory(directory, directory + '.zip')
-                client = authenticate()
-                file_id = '1679766376012'
-                upload_file(client, '289622073398', zip_path) # uploads the zipped directory
-                uploaded_session = True
-
-            #Update the table in Box
-            update_file(client, file_id, table_path)
 
             # Processsing Inputs at the After Session Menu
             for event in pygame.event.get():
