@@ -16,7 +16,12 @@ from boxsdk import Client, OAuth2
 import zipfile
 import os
 
+
 def authenticate():
+    """
+    Returns client authorization for Box uploading, must be called before download_file, upload_file, or update_file can work.
+
+    """
     client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
     # dev token HAS to be refreshed during every session for now, it only lasts an hour
@@ -29,6 +34,13 @@ def authenticate():
     return Client(auth)
 
 def download_file(client, file_id, download_dir):
+    """
+    Downloads a file from Box specified by file_id into the path specified by download_dir.
+    Exclusively used for downloading the user table
+    file_id can be found at the end of the URL of the specific file you want, i.e. https://utexas.app.box.com/file/file_id
+    
+    Returns the path to the downloaded file as a string
+    """
     file = client.file(file_id).get()
     download_path = os.path.join(download_dir, file.name)
     with open(download_path, 'wb') as open_file:
@@ -37,6 +49,12 @@ def download_file(client, file_id, download_dir):
     return download_path
 
 def upload_file(client, folder_id, local_file_path):
+    """
+    Uploads a file specified by local_file_path to the Box folder specified by folder_id.  
+    folder_id can be found at the end of the URL of the specific file you want, i.e. https://utexas.app.box.com/folder/folder_id
+    
+    Returns the ID of the new file created 
+    """
     file_name = os.path.basename(local_file_path)
     uploaded_file = client.folder(folder_id).upload(local_file_path, file_name)
     print(f'File {file_name} uploaded to Box folder {folder_id} with ID {uploaded_file.id}')
@@ -124,6 +142,17 @@ def find_serial_port():
 
 # Function to check if a user is in the table and last survey time
 def check_user_table(table, eid):
+
+    """
+    Not currently in use.
+
+    Function for checking if a user needs to finish the metadata portion of the survey.
+    Decides based on whether the user is present and if they recorded a session within the last 12 hours.
+
+    Returns 0 or 1,
+        0 = Don't do the second half of the survey
+        1 = Do the second half of the survey
+    """
     # Check all rows for the name
     for i in range(table.shape[0]):
         if table.loc[i, 'EID'] == eid:
@@ -141,6 +170,12 @@ def check_user_table(table, eid):
 
 def track_user(table, first, last, eid, caffeine_mg, meal_size, meal_desc, exercised_TF,
                exercise_desc, stim_use_TF = 0, hair_product= '', other_hair= ''):
+    """
+    Updates the user table with responses collected from the survey.
+
+    Returns: The modified user table and the individual row of metadata for the specified user (both as pandas dataframes). Handles session number tracking internally 
+    by either initializing SessionNum to 1 (new user) or incrementing by 1 (existing user).
+    """
     present = 0
     index = 0
     # Check if the user is already in the table
@@ -189,10 +224,22 @@ def track_user(table, first, last, eid, caffeine_mg, meal_size, meal_desc, exerc
     return table, table.iloc[[index]]
 
 def get_user_data(table, eid):
+    """
+    Provides an immutable method for accessing metadata rows in the table. 
+    Primarily used when you know a user is present. Will return an empty dataframe if absent.
+
+    Parameters: Table to search through, eid string to search for
+    Returns: Row of metadata. 
+    """
     row = table.loc[table['EID'] == eid]
     return row
 
 def create_user_directory(first_name, last_name, session_num):
+    """
+    Creates a new folder in the current script directory.
+    Directory Name = {first_name}_{last_name}_Session{session_num}
+    Returns the name of the directory for later manipulation of the directory.
+    """
     dir_name = first_name + '_' + last_name + '_' + 'Session' + str(session_num)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     new_dir_path = os.path.join(script_dir, dir_name)
