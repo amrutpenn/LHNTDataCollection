@@ -118,12 +118,6 @@ class EEGProcessor:
                 b, a = iirnotch(self.notch, 30, fs=self.sampling_rate)
                 channel_data = lfilter(b, a, channel_data)
 
-                # Z-score
-                mean = np.mean(channel_data)
-                std = np.std(channel_data)
-                if std == 0:
-                    std = 1  
-                channel_data = (channel_data - mean) / std
                 # add channel dimension to channel_data
                 new_processed_data[i, :] =  channel_data
 
