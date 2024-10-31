@@ -39,6 +39,19 @@ def find_serial_port():
     
     return None
 
+def draw_plus_sign(screen, center_pos, plus_length, thickness, color):
+    # Draw horizontal line
+    pygame.draw.line(screen, color,
+                     (center_pos[0] - plus_length // 2, center_pos[1]),
+                     (center_pos[0] + plus_length // 2, center_pos[1]),
+                     thickness)
+    # Draw vertical line
+    pygame.draw.line(screen, color,
+                     (center_pos[0], center_pos[1] - plus_length // 2),
+                     (center_pos[0], center_pos[1] + plus_length // 2),
+                     thickness)
+
+
 def create_user_directory(first_name, last_name, session_num):
     dir_name = first_name + '_' + last_name + '_' + 'Session' + str(session_num)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +67,7 @@ class EEGProcessor:
         #serial_port = find_serial_port()
         #params.serial_port = serial_port
         #self.board_id = BoardIds.CYTON_DAISY_BOARD.value
-        self.board_id = BoardIds.SYNTHETIC_BOARD.value
+        self.board_id = BoardIds.CYTON_DAISY_BOARD.value
         self.board = BoardShim(self.board_id, params)
         self.board.prepare_session()
         self.board.start_stream()
@@ -168,10 +181,6 @@ def main():
     GREEN = (0, 255, 0)
     RED = (255, 0, 0)
 
-    # Fonts
-    large_font = pygame.font.SysFont(None, 200)
-    medium_font = pygame.font.SysFont(None, 100)
-    small_font = pygame.font.SysFont(None, 50)
 
     # Control Variables
     running = True
@@ -183,23 +192,36 @@ def main():
     in_buffer_screen = False
     in_after_session_menu = False
     trial_number = 1
-    total_trials = 1 # Default number of trials
+    total_trials = 20 # Default number of trials
     time_between_sessions = 180 # number of seconds to wait between sessions of data collection
     start_enable_time = time.time() # the time at/after which the start button is enabled
     saved_questionnaire_data = False
+    
+    # Calculate font sizes based on screen height
+    font_size_large = infoObject.current_h // 10
+    font_size_medium = infoObject.current_h // 15
+    font_size_small = infoObject.current_h // 20
 
-    # Bar Settings
-    green_bar_width = 20
-    green_bar_height = 200
-    loading_bar_thickness = 30
-    arrow_offset_y = 100  # Move arrow up by 100 pixels
+    # Initialize fonts with the calculated sizes
+    large_font = pygame.font.SysFont(None, font_size_large)
+    medium_font = pygame.font.SysFont(None, font_size_medium)
+    small_font = pygame.font.SysFont(None, font_size_small)
+
+    green_bar_width = infoObject.current_w // 60
+    green_bar_height = infoObject.current_h // 3
+    loading_bar_thickness = infoObject.current_h // 30
+    arrow_y_offset = infoObject.current_h // 10
 
     # Positions for Green Bars
-    left_green_bar_pos = (100, infoObject.current_h // 2 - green_bar_height // 2)
-    right_green_bar_pos = (infoObject.current_w - 100 - green_bar_width, infoObject.current_h // 2 - green_bar_height // 2)
+    left_green_bar_pos = (infoObject.current_w // 50, infoObject.current_h // 2 - green_bar_height // 2)
+    right_green_bar_pos = (infoObject.current_w - infoObject.current_w // 50 - green_bar_width, infoObject.current_h // 2 - green_bar_height // 2)
 
     # Center Position
     center_pos = (infoObject.current_w // 2, infoObject.current_h // 2)
+
+    # Plus sign settings
+    plus_length = infoObject.current_h // 15  # Adjust as needed
+
 
     # Clock
     clock = pygame.time.Clock()
@@ -207,6 +229,8 @@ def main():
     # Input Variables
     input_text = ""
     input_error = False
+    questionnaire_error = False
+
 
     # Questionaire data
     identity_index = 0
@@ -245,8 +269,8 @@ def main():
     meal_boxes.append(meal_button4)
     meal_boxes.append(meal_button5)
 
-    yes_exercise = Checkbox(screen, width_delta * 5, height_delta * 8, 10, caption='yes', font_color=(255, 255, 255))
-    no_exercise = Checkbox(screen, width_delta * 6, height_delta * 8, 11, caption='no', font_color=(255, 255, 255))
+    yes_exercise = Checkbox(screen, width_delta * 5, height_delta * 7, 10, caption='yes', font_color=(255, 255, 255))
+    no_exercise = Checkbox(screen, width_delta * 6, height_delta * 7, 11, caption='no', font_color=(255, 255, 255))
 
     exercise_bool_boxes = []
     exercise_bool_boxes.append(yes_exercise)
@@ -254,25 +278,23 @@ def main():
     
     direction = 'left'  # Start with 'left' and alternate
 
+
     while running:
 
         if in_menu:
-            # Display Main Menu
             screen.fill(BLACK)
             title_text = large_font.render("EEG Motor Imagery", True, WHITE)
             start_text = medium_font.render("Press S to Start", True, GREEN)
             set_text = medium_font.render("Press N to Set Number", True, WHITE)
             quit_text = medium_font.render("Press Q to Quit", True, RED)
             trials_text = small_font.render(f"Total Trials: {total_trials}", True, WHITE)
-            wait_text = small_font.render(f"You have to wait {round(start_enable_time - time.time())} seconds before starting!", True, WHITE)
 
             # Positioning Text
-            title_rect = title_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 4))
-            start_rect = start_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 - 50))
-            set_rect = set_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 50))
-            quit_rect = quit_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 150))
-            trials_rect = trials_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 - 150))
-            wait_rect = wait_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + 250))
+            title_rect = title_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 5))
+            start_rect = start_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 - font_size_medium))
+            set_rect = set_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2))
+            quit_rect = quit_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 + font_size_medium))
+            trials_rect = trials_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 2 -  1.1 * font_size_large))
 
             # Blit Text to Screen
             screen.blit(title_text, title_rect)
@@ -280,8 +302,6 @@ def main():
             screen.blit(set_text, set_rect)
             screen.blit(quit_text, quit_rect)
             screen.blit(trials_text, trials_rect)
-            if (start_enable_time > time.time()): # If the start button is currently disabled
-                screen.blit(wait_text, wait_rect)
             pygame.display.flip()
 
             # Processing Input at the Main Menu
@@ -303,39 +323,49 @@ def main():
 
 
         elif in_questionaire_subject:
-            # Displays the questions about the subject 
             screen.fill(BLACK)
 
-            # Form questions from questionaire
+            # Positions based on scaled heights
+            height_delta = infoObject.current_h // 8
+
+            # Render and position texts
             first_name_text = medium_font.render("Enter first name", True, WHITE)
-            last_name_text = medium_font.render("Enter last name", True, WHITE)
-            eid_text = medium_font.render("Enter eid", True, WHITE)
-
-            # Position for questions
-            height_delta = infoObject.current_h // 6
             first_name_rect = first_name_text.get_rect(center=(infoObject.current_w // 2, height_delta))
-            last_name_rect = last_name_text.get_rect(center=(infoObject.current_w // 2, height_delta * 3))
-            eid_rect = eid_text.get_rect(center=(infoObject.current_w // 2, height_delta * 5))
 
-            # Form answers for questionaire
+            last_name_text = medium_font.render("Enter last name", True, WHITE)
+            last_name_rect = last_name_text.get_rect(center=(infoObject.current_w // 2, height_delta * 2.5))
+
+            eid_text = medium_font.render("Enter EID", True, WHITE)
+            eid_rect = eid_text.get_rect(center=(infoObject.current_w // 2, height_delta * 4))
+
+            # Render and position responses
             first_name_response = medium_font.render(identity_answers[0], True, WHITE)
+            first_name_response_rect = first_name_response.get_rect(center=(infoObject.current_w // 2, height_delta * 1.5))
+
             last_name_response = medium_font.render(identity_answers[1], True, WHITE)
+            last_name_response_rect = last_name_response.get_rect(center=(infoObject.current_w // 2, height_delta * 3))
+
             eid_response = medium_font.render(identity_answers[2], True, WHITE)
+            eid_response_rect = eid_response.get_rect(center=(infoObject.current_w // 2, height_delta * 5))
 
-            # Position for answer
-            first_name_response_rect = first_name_response.get_rect(center=(infoObject.current_w // 2, height_delta * 2))
-            last_name_response_rect = last_name_response.get_rect(center=(infoObject.current_w // 2, height_delta * 4))
-            eid_response_rect = eid_response.get_rect(center=(infoObject.current_w // 2, height_delta * 6))
-
-            # Blit Text to Screen
+            # Blit texts to the screen
             screen.blit(first_name_text, first_name_rect)
-            screen.blit(last_name_text, last_name_rect)
-            screen.blit(eid_text, eid_rect)
-                        
             screen.blit(first_name_response, first_name_response_rect)
+            screen.blit(last_name_text, last_name_rect)
             screen.blit(last_name_response, last_name_response_rect)
+            screen.blit(eid_text, eid_rect)
             screen.blit(eid_response, eid_response_rect)
+
+            # Error message if needed
+            if input_error:
+                error_text = small_font.render("Please fill out all fields before proceeding.", True, RED)
+                error_rect = error_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h - font_size_small))
+                screen.blit(error_text, error_rect)
+
             pygame.display.flip()
+
+            # Event handling remains the same
+
 
             # Subject info page handling
             for event in pygame.event.get():
@@ -352,13 +382,20 @@ def main():
                     elif event.key == pygame.K_UP and identity_index > 0:
                         identity_index -= 1
                     elif event.key == pygame.K_BACKSPACE:
-                        identity_answers[identity_index] = identity_answers[identity_index] [:-1]
+                        identity_answers[identity_index] = identity_answers[identity_index][:-1]
+                        input_error = False  # Reset error flag when user modifies input
                     elif event.key == pygame.K_RETURN:
-                        in_questionaire_subject = False 
-                        in_questionaire_physiological = True
-                        #TODO: Check for prev subject name to skip over questionaire
+                        # Check if all fields are filled
+                        if all(answer.strip() != "" for answer in identity_answers):
+                            in_questionaire_subject = False 
+                            in_questionaire_physiological = True
+                            input_error = False  # Reset the error flag
+                        else:
+                            input_error = True  # Set the error flag to display an error message
                     else:
                         identity_answers[identity_index] += event.unicode
+                        input_error = False  # Reset error flag when user modifies input
+
 
 
         elif in_questionaire_physiological:
@@ -366,38 +403,40 @@ def main():
             screen.fill(BLACK)
 
             # Multiple Choice Questions
-            stimulant_text = small_font.render("How much stimulant (e.g. caffiene) have you consumed in the past 12 hours?", True, WHITE)
+            stimulant_text = small_font.render("How much stimulant (e.g. caffeine) have you consumed in the past 12 hours?", True, WHITE)
             meal_text = small_font.render("Have you consumed a light, medium, or heavy meal in the past 12 hours?", True, WHITE)
             exercise_text = small_font.render("Have you exercised in the past 12 hours?", True, WHITE)
 
             # Free Response Questions
-            food_description_text = small_font.render("Describe what you ate in detail to the best of your ability, include portion size if possible", True, WHITE)
-            exercise_type_text = small_font.render("If you have exercised, please describe what you did and how long it was. N/A if no exercise", True, WHITE) 
+            food_description_text = small_font.render("Describe what you ate in detail, include portion size if possible", True, WHITE)
+            exercise_type_text = small_font.render("If you have exercised, please describe what you did and how long. N/A if no exercise", True, WHITE)
 
             # Free Response Answers
             food_response = small_font.render(free_response_answers[0], True, WHITE)
             exercise_response = small_font.render(free_response_answers[1], True, WHITE)
 
-            food_response_rect = food_response.get_rect(center=(infoObject.current_w // 2, height_delta * 6))
-            exercise_response_rect = exercise_response.get_rect(center=(infoObject.current_w // 2, height_delta * 10))
-
-            # Question Positioning
-            height_delta = infoObject.current_h // 11
+            # Positions for texts
+            height_delta = infoObject.current_h // 12
             stimulant_rect = stimulant_text.get_rect(center=(infoObject.current_w // 2, height_delta))
             meal_rect = meal_text.get_rect(center=(infoObject.current_w // 2, height_delta * 3))
             food_description_rect = food_description_text.get_rect(center=(infoObject.current_w // 2, height_delta * 5))
             exercise_rect = exercise_text.get_rect(center=(infoObject.current_w // 2, height_delta * 7))
             exercise_type_rect = exercise_type_text.get_rect(center=(infoObject.current_w // 2, height_delta * 9))
 
+            # Render texts
             screen.blit(stimulant_text, stimulant_rect)
             screen.blit(meal_text, meal_rect)
             screen.blit(food_description_text, food_description_rect)
             screen.blit(exercise_text, exercise_rect)
             screen.blit(exercise_type_text, exercise_type_rect)
 
+            # Render free response answers
+            food_response_rect = food_response.get_rect(center=(infoObject.current_w // 2, height_delta * 6))
+            exercise_response_rect = exercise_response.get_rect(center=(infoObject.current_w // 2, height_delta * 10))
             screen.blit(food_response, food_response_rect)
             screen.blit(exercise_response, exercise_response_rect)
 
+            # Render checkboxes
             all_boxes = []
             all_boxes.append(stimulant_boxes)
             all_boxes.append(meal_boxes)
@@ -405,42 +444,71 @@ def main():
             for box_holder in all_boxes:
                 for box in box_holder:
                     box.render_checkbox()
+
+            # Display error message if any question is unanswered
+            if questionnaire_error:
+                error_text = small_font.render("Please answer all questions before proceeding.", True, RED)
+                error_rect = error_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h - 50))
+                screen.blit(error_text, error_rect)
+
             pygame.display.flip()
             
-            # Loop
-            # Subject info page handling
+            # Event handling
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                     break
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                        for box_holder in all_boxes:
-                            for box in box_holder:
-                                box.update_checkbox(event)
-                                if box.checked:  # If this box is checked
-                                    for b in box_holder:
-                                        if b != box:
-                                            b.checked = False  # Uncheck other boxes
+                    # Update checkboxes
+                    for box_holder in all_boxes:
+                        for box in box_holder:
+                            box.update_checkbox(event)
+                            if box.checked:
+                                for b in box_holder:
+                                    if b != box:
+                                        b.checked = False  # Uncheck other boxes in the same group
+                    questionnaire_error = False  # Reset error flag when user selects an option
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
                         break
-                    # Change question selection
+                    # Change free response selection
                     if event.key == pygame.K_DOWN and free_response_index < 1:
                         free_response_index += 1
                     elif event.key == pygame.K_UP and free_response_index > 0:
                         free_response_index -= 1
                     elif event.key == pygame.K_BACKSPACE:
-                        free_response_answers[free_response_index] = free_response_answers[free_response_index] [:-1]
+                        free_response_answers[free_response_index] = free_response_answers[free_response_index][:-1]
+                        questionnaire_error = False  # Reset error flag when user modifies input
                     elif event.key == pygame.K_RETURN:
-                        for ind, box_holder in enumerate(all_boxes):
-                            for count, box in enumerate(box_holder):
-                                if box.checked:
-                                    button_answers[ind] = count
-                        in_questionaire_physiological = False
-                        in_buffer_screen = True
+                        # Check if all questions are answered
+                        all_questions_answered = True
+
+                        # Check if an option is selected in each checkbox group
+                        for box_holder in all_boxes:
+                            if not any(box.checked for box in box_holder):
+                                all_questions_answered = False
+                                break
+
+                        # Check if free response answers are not empty
+                        if any(answer.strip() == "" for answer in free_response_answers):
+                            all_questions_answered = False
+
+                        if all_questions_answered:
+                            # Save the answers from checkboxes
+                            for ind, box_holder in enumerate(all_boxes):
+                                for count, box in enumerate(box_holder):
+                                    if box.checked:
+                                        button_answers[ind] = count
+
+                            in_questionaire_physiological = False
+                            in_buffer_screen = True
+                            questionnaire_error = False  # Reset the error flag
+                        else:
+                            questionnaire_error = True  # Set the error flag to display an error message
                     else:
                         free_response_answers[free_response_index] += event.unicode
+                        questionnaire_error = False  # Reset error flag when user modifies input
 
 
         elif in_buffer_screen:
@@ -468,7 +536,7 @@ def main():
 
                 for box in exercise_bool_boxes:
                     if box.get_checked():
-                        exercise = box.get_caption()
+                        exercise_yn = box.get_caption()
 
                 #Use questionnaire data to update metadata and create session directory
                 directory = create_user_directory(first_name, last_name, session_num)
@@ -635,9 +703,7 @@ def main():
             screen.blit(trial_info, trial_info_rect)
 
             # Draw Focus Period '+' sign
-            plus_text = large_font.render("+", True, WHITE)
-            plus_rect = plus_text.get_rect(center=center_pos)
-            screen.blit(plus_text, plus_rect)
+            draw_plus_sign(screen, center_pos, plus_length, loading_bar_thickness, WHITE)
             pygame.display.flip()
 
             # Collect data during focus period
@@ -658,10 +724,10 @@ def main():
                 break
 
             # Show Arrow (Moved Up)
-            arrow_length = 100
             arrow_color = WHITE
-            arrow_width = 20
-            arrow_y_offset = arrow_offset_y  # Move arrow up by arrow_offset_y pixels
+            arrow_length = infoObject.current_w // 10  
+            arrow_width = infoObject.current_h // 40
+            arrow_y_offset = infoObject.current_h // 10
 
             # Clear screen but keep green bars and trial info
             screen.fill(BLACK)
@@ -684,10 +750,13 @@ def main():
                     (center_pos[0], center_pos[1] - arrow_y_offset - arrow_width),
                     (center_pos[0], center_pos[1] - arrow_y_offset + arrow_width)
                 ])
+
+            draw_plus_sign(screen, center_pos, plus_length, loading_bar_thickness, WHITE)
+
             pygame.display.flip()
 
             # Wait before starting the loading bar
-            pre_loading_duration = 1  # second
+            pre_loading_duration = 1.2  # second
             pre_loading_start = time.time()
             while time.time() - pre_loading_start < pre_loading_duration:
                 for event in pygame.event.get():
@@ -769,6 +838,8 @@ def main():
                         loading_bar_thickness
                     ))
 
+                draw_plus_sign(screen, center_pos, plus_length, loading_bar_thickness, WHITE)
+
                 pygame.display.flip()
                 save_data(eeg_processor, metadata, direction, trial_number, directory)
                 clock.tick(60)
@@ -777,7 +848,8 @@ def main():
                 break
 
             # Optional rest period with accessible menu
-            rest_duration = 2  # seconds
+            # random rest between 3, 5 seconds
+            rest_duration = np.random.uniform(3, 5)
             rest_start_time = time.time()
             while time.time() - rest_start_time < rest_duration:
                 for event in pygame.event.get():
@@ -815,8 +887,7 @@ def main():
             else:
                 direction = 'left'
 
-            if direction == 'left':
-                trial_number += 1
+            trial_number += 1
 
             # Check if all trials are completed
             if trial_number > total_trials:
