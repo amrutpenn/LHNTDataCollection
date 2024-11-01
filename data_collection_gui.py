@@ -340,6 +340,12 @@ class EEGProcessor:
 #Save last 7 seconds of signal and metadata to its own .pkl file in the session directory
 def save_data(eeg_processor, metadata, direction, trial_num, directory):
     sig = eeg_processor.get_recent_data()
+    # Checks for nan's or if there are any channels that have a standard deviation of 1
+    if np.isnan(sig).any():
+        return None
+    for i in range(sig.shape[0]):
+        if np.std(sig[i, :]) == 0:
+            return None
     #Establish a filename - I think maybe we could do [Direction]_[Number].pkl but maybe we could just work that out
     filename = direction + '_' + str(trial_num) + '.pkl'
 
