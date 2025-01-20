@@ -23,9 +23,9 @@ def authenticate():
 
     """
     client_id = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
-    client_secret = 'bq09tmdv7v99bcivrw6z5z6hdgny907i'
+    client_secret = 'secret'
     # dev token HAS to be refreshed during every session for now, it only lasts an hour
-    developer_token = 'wdCCVGlJvNCgCTMuTGyLEVw813z3LykO'
+    developer_token = 'token'
     auth = OAuth2(
         client_id=client_id,
         client_secret=client_secret,
@@ -928,6 +928,10 @@ def main():
             loading_duration = 7  # seconds
             loading_start_time = time.time()
 
+            # Initialize loading bar variables
+            current_direction = direction
+            current_length = 0
+
             while time.time() - loading_start_time < loading_duration:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
@@ -954,6 +958,17 @@ def main():
 
                 # Redraw Arrow
                 if direction == 'left':
+                    
+                    # Adds some noise for the bar to move back and forth
+                    if current_direction == 'left':
+                        current_length += 10
+                        if np.random.random() < 0.03:
+                            current_direction = 'right'
+                    else:
+                        current_length -= 10
+                        if np.random.random() < 0.1:
+                            current_direction = 'left'
+
                     pygame.draw.polygon(screen, arrow_color, [
                         (center_pos[0] - arrow_length, center_pos[1] - arrow_y_offset),
                         (center_pos[0], center_pos[1] - arrow_y_offset - arrow_width),
@@ -962,7 +977,7 @@ def main():
                     # Calculate current length of the loading bar
                     # From center to left green bar
                     max_length = center_pos[0] - (left_green_bar_pos[0] + green_bar_width)
-                    current_length = loading_progress * max_length
+                    
 
                     # Draw loading bar moving left from center
                     pygame.draw.rect(screen, WHITE, (
