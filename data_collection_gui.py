@@ -262,11 +262,11 @@ class EEGProcessor:
 
         # Sampling rate and window size
         self.sampling_rate = BoardShim.get_sampling_rate(self.board_id)
-        self.window_size_sec = 7  # seconds
+        self.window_size_sec = 14  # seconds
         self.window_size_samples = int(self.window_size_sec * self.sampling_rate)
 
-        # we set raw window size to 10 seconds
-        self.window_size_raw = int(10 * self.sampling_rate)
+        # we set raw window size to 17 seconds
+        self.window_size_raw = int(17 * self.sampling_rate)
         self.lowcut = 1.0
         self.highcut = 50.0
         self.notch = 60.0
@@ -284,9 +284,9 @@ class EEGProcessor:
         self.board.release_session()
         print("BrainFlow streaming stopped.")
 
-    def get_recent_data(self):
+    def get_recent_data(self, duration=14):
         """
-        Returns the most recent 7 seconds of processed EEG data.
+        Returns the most recent 14 seconds of processed EEG data.
 
         The data is bandpass filtered, notch filtered, and z-scored.
         Each data point is filtered only once.
@@ -334,28 +334,30 @@ class EEGProcessor:
             recent_data = self.processed_data_buffer[:, -self.window_size_samples:]
         else:
             recent_data = self.processed_data_buffer
-
-        return recent_data
+        
+        # only as long as duration
+        return recent_data[:, -int(duration * self.sampling_rate):]
     
-#Save last 7 seconds of signal and metadata to its own .pkl file in the session directory
-def save_data(eeg_processor, metadata, direction, trial_num, directory):
-    sig = eeg_processor.get_recent_data()
+# Save last 14 seconds of signal and metadata to its own .npy file in the session directory
+def save_data(eeg_processor, duration, direction, trial_num, directory):
+    sig = eeg_processor.get_recent_data(duration) 
+    print(f"Duration of trial: {duration:.2f}s, Data shape: {sig.shape}")
     # Checks for nan's or if there are any channels that have a standard deviation of 1
     if np.isnan(sig).any():
         return None
     for i in range(sig.shape[0]):
         if np.std(sig[i, :]) == 0:
             return None
-    #Establish a filename - I think maybe we could do [Direction]_[Number].pkl but maybe we could just work that out
-    filename = direction + '_' + str(trial_num) + '.pkl'
+    #Establish a filename - I think maybe we could do [Direction]_[Number].npy but maybe we could just work that out
+    filename = f"{direction}_{trial_num}.npy"
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     intermediate = os.path.join(script_dir, directory)
     filepath = os.path.join(intermediate, filename)
 
-    #Dump signal and metadata into pickle file - this saves into the folder that we created earlier
-    with open(filepath, 'wb') as f:
-        pickle.dump((sig, metadata), f)
+    # Save the signal into a .npy file
+    np.save(filepath, sig)
+    print(f"Signal saved to: {filepath}")
     
 
 def main():
@@ -925,14 +927,18 @@ def main():
                 break
 
             # Loading Bar
-            loading_duration = 7  # seconds
-            loading_start_time = time.time()
+            loading_duration = 14  # seconds
+
+            # Perf counter is a more accurate timer than time.time()
+            loading_start_time = time.perf_counter()
 
             # Initialize loading bar variables
             current_direction = direction
             current_length = 0
+            # From center to left green bar
+            max_length = center_pos[0] - (left_green_bar_pos[0] + green_bar_width)
 
-            while time.time() - loading_start_time < loading_duration:
+            while time.perf_counter() - loading_start_time < loading_duration and current_length < max_length:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
@@ -946,7 +952,7 @@ def main():
                             break
 
                 # Calculate loading bar progress
-                elapsed_time = time.time() - loading_start_time
+                elapsed_time = time.perf_counter() - loading_start_time
                 loading_progress = elapsed_time / loading_duration
 
                 screen.fill(BLACK)
@@ -961,11 +967,11 @@ def main():
                     
                     # Adds some noise for the bar to move back and forth
                     if current_direction == 'left':
-                        current_length += 10
+                        current_length += 3
                         if np.random.random() < 0.03:
                             current_direction = 'right'
                     else:
-                        current_length -= 10
+                        current_length -= 3
                         if np.random.random() < 0.1:
                             current_direction = 'left'
 
@@ -973,10 +979,7 @@ def main():
                         (center_pos[0] - arrow_length, center_pos[1] - arrow_y_offset),
                         (center_pos[0], center_pos[1] - arrow_y_offset - arrow_width),
                         (center_pos[0], center_pos[1] - arrow_y_offset + arrow_width)
-                    ])
-                    # Calculate current length of the loading bar
-                    # From center to left green bar
-                    max_length = center_pos[0] - (left_green_bar_pos[0] + green_bar_width)
+                    ])                    
                     
 
                     # Draw loading bar moving left from center
@@ -987,15 +990,23 @@ def main():
                         loading_bar_thickness
                     ))
                 else:
+
+                    # Adds some noise for the bar to move back and forth
+                    if current_direction == 'right':
+                        current_length += 3
+                        if np.random.random() < 0.03:
+                            current_direction = 'left'
+                    else:
+                        current_length -= 3
+                        if np.random.random() < 0.1:
+                            current_direction = 'right'
+
                     pygame.draw.polygon(screen, arrow_color, [
                         (center_pos[0] + arrow_length, center_pos[1] - arrow_y_offset),
                         (center_pos[0], center_pos[1] - arrow_y_offset - arrow_width),
                         (center_pos[0], center_pos[1] - arrow_y_offset + arrow_width)
                     ])
-                    # Calculate current length of the loading bar
-                    # From center to right green bar
-                    max_length = (right_green_bar_pos[0]) - center_pos[0]
-                    current_length = loading_progress * max_length
+                    
 
                     # Draw loading bar moving right from center
                     pygame.draw.rect(screen, WHITE, (
@@ -1006,8 +1017,9 @@ def main():
                     ))
 
                 pygame.display.flip()
-                save_data(eeg_processor, metadata, direction, trial_number, directory)
                 clock.tick(60)
+            
+            save_data(eeg_processor, elapsed_time, direction, trial_number, directory)
 
             if not running:
                 break
