@@ -77,7 +77,9 @@ def main():
         
 
     while running:
+        # Update within loop for input screen to properly update menu screen
         config['total_trials'] = total_trials
+        config['start_enable_time'] = start_enable_time
         
         if in_menu:
             display_functions.display_menu(screen, config)
