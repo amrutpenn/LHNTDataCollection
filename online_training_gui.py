@@ -34,10 +34,13 @@ def main():
     in_trial_menu = False
     in_after_session_menu = False
     trial_number = 1
-    total_trials = 2 # Default number of trials - changed to 2 on 1/25/2025
+    total_trials = 3 # Default number of trials - changed to 2 on 1/25/2025
     batch_size = 3 #default number of trails in a single batch - added 1/25/2025
     time_between_sessions = 180 # number of seconds to wait between sessions of data collection
     start_enable_time = time.time() # the time at/after which the start button is enabled
+
+    # Batch data buffer
+    batch_data = []
 
 
     # Bar Settings
@@ -116,9 +119,6 @@ def main():
                         if input_text.isdigit():
                             entered_number = int(input_text)
                             if entered_number > 0:
-                                if entered_number % 2 != 0:
-                                    entered_number += 1  # Make it even
-                                    input_error = True
                                 total_trials = entered_number
                                 in_input = False
                                 in_menu = True
@@ -233,7 +233,7 @@ def main():
             pygame.display.flip()
 
             # Wait before starting the loading bar
-            pre_loading_duration = 1  # second
+            pre_loading_duration = 1.5  # second
             pre_loading_start = time.time()
             while time.time() - pre_loading_start < pre_loading_duration:
                 for event in pygame.event.get():
@@ -249,9 +249,15 @@ def main():
             if not running:
                 break
 
+            # TODO: Implement real model call (Last 1.5 seconds of data)
+            model_input = eeg_processor.get_recent_data(1.5)
+            print(model_input.shape)
+
             # Loading Bar
             loading_duration = 14  # Max trial time in seconds
-            loading_start_time = time.time()
+
+            # Perf counter is a more accurate timer
+            loading_start_time = time.perf_counter()
 
             # Initialize loading bar variables
             current_direction = direction
@@ -259,7 +265,7 @@ def main():
             # From center to left green bar
             max_length = center_pos[0] - (left_green_bar_pos[0] + green_bar_width)
 
-            while time.time() - loading_start_time < loading_duration and current_length < max_length:
+            while time.perf_counter() - loading_start_time < loading_duration and current_length < max_length:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
@@ -280,13 +286,16 @@ def main():
                 # Redraw trial info
                 screen.blit(trial_info, trial_info_rect)
 
+                # TODO: Implement real model call (Last 1.5 seconds of data)
+                model_input = eeg_processor.get_recent_data(1.5)
+
                 # Calling noise model
                 current_direction = noise_model(direction, current_direction)
 
                 # Redraw Arrow
                 if direction == 'left':
                     
-                    # Adds some noise for the bar to move back and forth
+                    # Move bar to reflect input from model
                     if current_direction == 'left':
                         current_length += 3
                         
@@ -310,7 +319,7 @@ def main():
                     ))
                 else:
 
-                    # Adds some noise for the bar to move back and forth
+                    # Move bar to reflect input from model
                     if current_direction == 'right':
                         current_length += 3
                         
@@ -336,6 +345,10 @@ def main():
                 pygame.display.flip()
                 # save_data(eeg_processor, metadata, direction, trial_number, directory)
                 clock.tick(60)
+
+            trial_length = time.perf_counter() - loading_start_time
+            trial_data = eeg_processor.get_recent_data(trial_length)
+            batch_data.append(trial_data)
 
             if not running:
                 break
@@ -373,6 +386,11 @@ def main():
             # Screen for uploading previous batch of trials to model
             # also activates after final trial is completed (when batch size =/= 2)
             if direction == 'right' and ((trial_number % batch_size == 0) or trial_number == total_trials):
+                # TODO: Call function to train model (full batches) input parameter is np array training_data
+                # train model with batch_data list
+                print(batch_data)
+                batch_data = []
+                clock.tick(60)
                 batch_load_example_time = 3 #seconds
                 batch_load_start_time = time.time()
                 while time.time() - batch_load_start_time < batch_load_example_time:
@@ -395,7 +413,6 @@ def main():
                     batch_size_rect = batch_size_text.get_rect(center=(infoObject.current_w / 2, infoObject.current_h / 2 + 50))
                     screen.blit(batch_size_text, batch_size_rect)
                     pygame.display.flip()
-                    clock.tick(60)
 
             if not running:
                 break

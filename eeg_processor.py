@@ -49,11 +49,11 @@ class EEGProcessor:
 
         # Sampling rate and window size
         self.sampling_rate = BoardShim.get_sampling_rate(self.board_id)
-        self.window_size_sec = 1.5  # seconds
+        self.window_size_sec = 14  # seconds
         self.window_size_samples = int(self.window_size_sec * self.sampling_rate)
 
-        # we set raw window size to 5 seconds
-        self.window_size_raw = int(5 * self.sampling_rate)
+        # we set raw window size to 17 seconds
+        self.window_size_raw = int(17 * self.sampling_rate)
         self.lowcut = 1.0
         self.highcut = 50.0
         self.notch = 60.0
@@ -71,9 +71,9 @@ class EEGProcessor:
         self.board.release_session()
         print("BrainFlow streaming stopped.")
 
-    def get_recent_data(self):
+    def get_recent_data(self, duration=14):
         """
-        Returns the most recent 1.5 seconds of processed EEG data.
+        Returns the most recent n seconds of processed EEG data.
 
         The data is bandpass filtered, notch filtered, and z-scored.
         Each data point is filtered only once.
@@ -121,5 +121,6 @@ class EEGProcessor:
             recent_data = self.processed_data_buffer[:, -self.window_size_samples:]
         else:
             recent_data = self.processed_data_buffer
-
-        return recent_data
+        
+        # only as long as duration
+        return recent_data[:, -int(duration * self.sampling_rate):]
