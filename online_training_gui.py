@@ -5,9 +5,16 @@ import numpy as np
 from eeg_processor import EEGProcessor
 from Noise_Model import noise_model
 import display_functions
+import torch
+from Model import PCNN_3Branch
 
 def main():
     eeg_processor = EEGProcessor()
+    # load model being used
+    model = PCNN_3Branch()
+    checkpoint = torch.load("LHNTDataCollection\matt_pcnn.pth", map_location=torch.device('cpu'))
+    model.load_state_dict(checkpoint.state_dict())
+    model = model.float()
 
     # Initialize Pygame
     pygame.init()
@@ -249,9 +256,18 @@ def main():
             if not running:
                 break
 
-            # TODO: Implement real model call (Last 1.5 seconds of data)
-            model_input = eeg_processor.get_recent_data(1.5)
+            # TODO: Implement real model call (Last second of data)
+            model_input = eeg_processor.get_recent_data(.5) # Change to 1 with real board
+            model_input = np.array([model_input])
+            model_input = torch.from_numpy(model_input)
             print(model_input.shape)
+
+            current_direction = model(model_input)
+
+            if current_direction[0] > current_direction[1]:
+                current_direction = "left"
+            else:
+                current_direction = "right"
 
             # Loading Bar
             loading_duration = 14  # Max trial time in seconds
@@ -260,7 +276,6 @@ def main():
             loading_start_time = time.perf_counter()
 
             # Initialize loading bar variables
-            current_direction = direction
             current_length = 0
             # From center to left green bar
             max_length = center_pos[0] - (left_green_bar_pos[0] + green_bar_width)
@@ -286,11 +301,17 @@ def main():
                 # Redraw trial info
                 screen.blit(trial_info, trial_info_rect)
 
-                # TODO: Implement real model call (Last 1.5 seconds of data)
-                model_input = eeg_processor.get_recent_data(1.5)
+                # TODO: Implement real model call (Last second of data)
+                model_input = eeg_processor.get_recent_data(.5) # Change to 1 for real board
+                current_direction = model(model_input)
+
+                if current_direction[0] > current_direction[1]:
+                    current_direction = "left"
+                else:
+                    current_direction = "right"
 
                 # Calling noise model
-                current_direction = noise_model(direction, current_direction)
+                # current_direction = noise_model(direction, current_direction)
 
                 # Redraw Arrow
                 if direction == 'left':
