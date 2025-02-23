@@ -4,6 +4,7 @@ from scipy.signal import butter, lfilter, iirnotch
 import platform
 import serial
 import serial.tools.list_ports
+import torch
 
 def find_serial_port():
     """
@@ -123,4 +124,12 @@ class EEGProcessor:
             recent_data = self.processed_data_buffer
         
         # only as long as duration
-        return recent_data[:, -int(duration * self.sampling_rate):]
+        model_input =  recent_data[:, -int(duration * self.sampling_rate):]
+        # add dimension for model input
+        model_input = np.array([model_input])
+        # convert to torch tensor
+        model_input = torch.from_numpy(model_input)
+        # change dtype to float32
+        model_input = model_input.float()
+
+        return model_input

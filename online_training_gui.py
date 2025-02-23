@@ -12,7 +12,7 @@ def main():
     eeg_processor = EEGProcessor()
     # load model being used
     model = PCNN_3Branch()
-    checkpoint = torch.load("LHNTDataCollection\matt_pcnn.pth", map_location=torch.device('cpu'))
+    checkpoint = torch.load("matt_pcnn.pth", map_location=torch.device('cpu'), weights_only=False)
     model.load_state_dict(checkpoint.state_dict())
     model = model.float()
 
@@ -256,18 +256,6 @@ def main():
             if not running:
                 break
 
-            # TODO: Implement real model call (Last second of data)
-            model_input = eeg_processor.get_recent_data(.5) # Change to 1 with real board
-            model_input = np.array([model_input])
-            model_input = torch.from_numpy(model_input)
-            print(model_input.shape)
-
-            current_direction = model(model_input)
-
-            if current_direction[0] > current_direction[1]:
-                current_direction = "left"
-            else:
-                current_direction = "right"
 
             # Loading Bar
             loading_duration = 14  # Max trial time in seconds
@@ -302,8 +290,9 @@ def main():
                 screen.blit(trial_info, trial_info_rect)
 
                 # TODO: Implement real model call (Last second of data)
-                model_input = eeg_processor.get_recent_data(.5) # Change to 1 for real board
-                current_direction = model(model_input)
+                model_input = eeg_processor.get_recent_data(.5) # Change to 1 with real board
+
+                current_direction = model(model_input)[0]            
 
                 if current_direction[0] > current_direction[1]:
                     current_direction = "left"
@@ -347,6 +336,15 @@ def main():
                     else:
                         current_length -= 3
                         
+                    # TODO: Implement real model call (Last second of data)
+                    model_input = eeg_processor.get_recent_data(.5) # Change to 1 with real board
+
+                    current_direction = model(model_input)[0]
+
+                    if current_direction[0] > current_direction[1]:
+                        current_direction = "left"
+                    else:
+                        current_direction = "right"
 
                     pygame.draw.polygon(screen, arrow_color, [
                         (center_pos[0] + arrow_length, center_pos[1] - arrow_y_offset),
