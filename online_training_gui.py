@@ -7,6 +7,14 @@ from Noise_Model import noise_model
 import display_functions
 import torch
 from Model import PCNN_3Branch
+import os
+import numpy as np
+import torch
+from sklearn.model_selection import train_test_split as tts
+from tqdm import tqdm
+from torch.utils.data import DataLoader as DL
+from torch.utils.data import TensorDataset as TData
+from model_prep import preprocess, balancing
 
 def main():
     eeg_processor = EEGProcessor()
@@ -15,6 +23,7 @@ def main():
     checkpoint = torch.load("matt_pcnn.pth", map_location=torch.device('cpu'), weights_only=False)
     model.load_state_dict(checkpoint.state_dict())
     model = model.float()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # Initialize Pygame
     pygame.init()
@@ -289,7 +298,6 @@ def main():
                 # Redraw trial info
                 screen.blit(trial_info, trial_info_rect)
 
-                # TODO: Implement real model call (Last second of data)
                 model_input = eeg_processor.get_recent_data(.5) # Change to 1 with real board
 
                 current_direction = model(model_input)[0]            
@@ -336,7 +344,6 @@ def main():
                     else:
                         current_length -= 3
                         
-                    # TODO: Implement real model call (Last second of data)
                     model_input = eeg_processor.get_recent_data(.5) # Change to 1 with real board
 
                     current_direction = model(model_input)[0]
@@ -407,6 +414,86 @@ def main():
             if direction == 'right' and ((trial_number % batch_size == 0) or trial_number == total_trials):
                 # TODO: Call function to train model (full batches) input parameter is np array training_data
                 # train model with batch_data list
+                epochs = 10
+                trials = 6
+                criterion = torch.nn.CrossEntropyLoss()
+                optim = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+                train_losses = []
+                val_losses = []
+                accs = []
+
+                # preprocess left hand and right hand signals
+                segments_left = preprocess(offline_left_sigs)
+                segments_right = preprocess(offline_right_sigs)
+                for i in range(epochs):
+                    # randomly sample p fraction of dataset, ensuring balanced left and right classes
+                    offline_left, offline_right = balancing(segments_left, segments_right, p=0.25)
+                    labels_left = [0] * len(online_left)
+                    labels_right = [1] * len(online_right)
+
+                    ## collect real time signals
+                    left_signals = [sig for i, sig in enumerate(batch_data) if i % 2 == 0]
+                    right_signals = [sig for i, sig in enumerate(batch_data) if i % 2 == 1]
+
+                    # preprocess left and right hand signals
+                    left_segments = preprocess(left_signals)
+                    right_segments = preprocess(right_signals)
+
+                    # balance classes for online data
+                    online_left, online_right = balancing(left_segments, right_segments)
+                    left_labels = [0] * len(online_left)
+                    right_labels = [1] * len(online_right)
+
+                    # combine data and create data loaders
+                    all_sigs = offline_left + offline_right + online_left + online_right
+                    all_labels = labels_left + labels_right + left_labels + right_labels
+
+                    train_sigs, val_sigs, train_labs, val_labs = tts(all_sigs, all_labels, test_size = 0.25)
+                    train_ds = TData(torch.from_numpy(np.stack(train_sigs)), torch.tensor(train_labs))
+                    val_ds = TData(torch.from_numpy(np.stack(val_sigs)), torch.tensor(val_labs))
+
+                    train_dl = DL(train_ds, batch_size = 64, shuffle = True)
+                    valid_dl = DL(val_ds, batch_size = 64, shuffle = True)
+
+                    ## train and evaluate the model on the new data
+                    model.train()
+                    total_train_loss = 0.0
+                    pbar = tqdm(total=len(train_dl))
+                    for j, (batch, label) in enumerate(train_dl):
+                        batch = batch.to(device).to(torch.float32)
+                        label = label.to(device)
+                        optim.zero_grad()
+                        y_pred = model(batch)
+                        loss = criterion(y_pred, label)
+                        loss.backward()
+                        optim.step()
+                        total_train_loss += loss.item()
+                        pbar.set_description(f"Epoch {i + 1}    loss={total_train_loss / (j + 1):0.4f}")
+                        pbar.update(1)
+                    pbar.close()
+                    train_losses.append(total_train_loss/len(train_dl))
+
+                    model.eval()
+                    total_val_loss = 0.0
+                    total_accuracy = 0.0
+                    with torch.no_grad():
+                        p_bar = tqdm(total=len(valid_dl))
+                        for j, (batch, label) in enumerate(valid_dl):
+                            batch = batch.to(device).to(torch.float32)
+                            label = label.to(device)
+                            y_pred = model(batch)
+                            loss = criterion(y_pred, label)
+                            prob_pred = torch.nn.functional.softmax(y_pred, -1)
+                            acc = (prob_pred.argmax(-1) == label).float().mean()
+                            total_val_loss += loss.item()
+                            total_accuracy += acc.item()
+                            p_bar.set_description(f"val_loss={total_val_loss / (j + 1):.4f}  val_acc={total_accuracy / (j + 1):.4f}")
+                            p_bar.update(1)
+                        p_bar.close()
+                    val_losses.append(total_val_loss/len(valid_dl))
+                    accs.append(total_accuracy/len(valid_dl))
+
+                    torch.save(model.state_dict(), f"saved_models/{person}_model{i}.pt")
                 print(batch_data)
                 batch_data = []
                 clock.tick(60)
