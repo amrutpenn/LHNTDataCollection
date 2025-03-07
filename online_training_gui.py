@@ -15,6 +15,27 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader as DL
 from torch.utils.data import TensorDataset as TData
 from model_prep import preprocess, balancing
+from path import Path
+import random
+
+def get_box_drive_path():
+    base_path = Path.home() / "Box"
+    if base_path.exists():
+        return base_path
+    else:
+        raise FileNotFoundError("Box Drive folder not found.")
+
+def access_folder(folder_name="LHNT EEG"):
+    box_drive_path = get_box_drive_path()
+    folder_path = box_drive_path / folder_name
+    if folder_path.exists():
+        return list(folder_path.iterdir())  # Returns a list of files and folders
+    else:
+        raise FileNotFoundError(f"Folder '{folder_name}' not found in Box Drive.")
+
+def name_match(n, file_list):
+    matched_files = [x for x in file_list if n in x.name.lower()]
+    return matched_files if matched_files else None
 
 def main():
     eeg_processor = EEGProcessor()
@@ -78,6 +99,10 @@ def main():
     # Input Variables
     input_text = ""
     input_error = False
+
+    #Stored name
+    in_name_input = False
+    name = ""
     
     direction = 'left'  # Start with 'left' and alternate
 
@@ -110,7 +135,7 @@ def main():
                     if event.key == pygame.K_s: 
                         if time.time() >= start_enable_time:
                             in_menu = False
-                            in_questionaire_subject = True
+                            in_name_input = True
                     elif event.key == pygame.K_n:
                         in_input = True
                         in_menu = False
@@ -118,6 +143,87 @@ def main():
                         input_error = False
                     elif event.key == pygame.K_q:
                         running = False
+
+
+        elif in_name_input:
+            screen.fill(BLACK)
+
+            # Render and center the prompt text
+            prompt_text = medium_font.render("Enter First and Last Name:", True, WHITE)
+            prompt_rect = prompt_text.get_rect(center=(infoObject.current_w // 2, infoObject.current_h // 3))
+            screen.blit(prompt_text, prompt_rect)
+
+            # Base dimensions for the input box
+            box_padding = 20  # Extra space around text
+            min_box_width = 500  # Minimum width of the box
+            box_height = 70
+
+            # Get the width of the rendered input text
+            input_display = small_font.render(name, True, GREEN)
+            text_width, text_height = input_display.get_size()
+
+            # Adjust box width dynamically
+            box_width = max(min_box_width, text_width + box_padding * 2)
+            box_x = (infoObject.current_w // 2) - (box_width // 2)
+            box_y = (infoObject.current_h // 2) - (box_height // 2)
+
+            # Draw the input box
+            pygame.draw.rect(screen, GREEN, (box_x, box_y, box_width, box_height), width=3)
+
+            # Center input text inside the box
+            input_rect = input_display.get_rect(midleft=(box_x + box_padding, infoObject.current_h // 2))
+            screen.blit(input_display, input_rect)
+
+            # Update the display
+            pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN and " " in name.strip(" "):
+                        name = name.replace(" ","_").lower()  # Space to underscore, upper to lower
+                        in_name_input = False
+
+                        try:
+                            files = access_folder()
+                            matched_files = name_match(name, files)
+
+                            if matched_files:
+                                selected_file = random.choice(matched_files)  # Select a random file
+
+                                # Display success message with the selected file
+                                success_text = small_font.render(f"Using {selected_file.name} for testing", True, GREEN)
+                                success_rect = success_text.get_rect(
+                                    center=(infoObject.current_w // 2, infoObject.current_h // 1.5))
+                                screen.blit(success_text, success_rect)
+                                pygame.display.flip()
+                                time.sleep(2)  # Pause for 2 seconds before proceeding
+
+                                in_name_input = False
+                                in_questionaire_subject = True  # Proceed to the next screen
+                            else:
+                                # Display error message
+                                error_text = small_font.render("No data found for this user.", True, RED)
+                                error_rect = error_text.get_rect(
+                                    center=(infoObject.current_w // 2, infoObject.current_h // 1.5))
+                                screen.blit(error_text, error_rect)
+                                pygame.display.flip()
+                                time.sleep(2)  # Pause before retrying
+
+                        except FileNotFoundError as e:
+                            error_text = small_font.render(str(e), True, RED)
+                            error_rect = error_text.get_rect(
+                                center=(infoObject.current_w // 2, infoObject.current_h // 1.5))
+                            screen.blit(error_text, error_rect)
+                            pygame.display.flip()
+                            time.sleep(2)
+
+                    elif event.key == pygame.K_BACKSPACE:
+                        name = name[:-1]
+                    elif event.key == pygame.K_SPACE and " " not in name:
+                        name += " "  #
+                    elif event.unicode.isalpha():
+                        name += event.unicode  # Allow only letters
 
         elif in_input:
             # Display Input Menu for Setting Number of Trials
