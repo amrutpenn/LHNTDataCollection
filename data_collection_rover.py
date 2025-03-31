@@ -80,7 +80,7 @@ class EEGProcessor:
         params = BrainFlowInputParams()
         # serial_port = find_serial_port()
         # params.serial_port = serial_port
-        self.board_id = BoardIds.SYNTHETIC_BOARD.value
+        self.board_id = BoardIds.CYTON_DAISY_BOARD.value
         self.board = BoardShim(self.board_id, params)
         self.board.prepare_session()
         self.board.start_stream()
